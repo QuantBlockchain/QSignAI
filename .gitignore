@@ -43,5 +43,3 @@ build/
 # Logs
 *.log
 
-# Lock files in subdirectories (root lock file is kept)
-photo-wall/package-lock.json
