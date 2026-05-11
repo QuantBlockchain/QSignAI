@@ -1,5 +1,11 @@
 # Dependencies
 node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
 
 # CDK
 cdk.out/
@@ -30,6 +36,9 @@ build/
 
 # IDE
 .vscode/
+.idea/
+*.swp
+*.swo
 
 # Logs
 *.log

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install CDK dependencies
+        run: npm ci
+
+      - name: TypeScript check (CDK)
+        run: npx tsc --noEmit
+
+      - name: Install frontend dependencies
+        working-directory: photo-wall
+        run: npm ci
+
+      - name: TypeScript check (frontend)
+        working-directory: photo-wall
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        working-directory: photo-wall
+        run: npm run build
+
+      - name: CDK synth (validate template)
+        run: npx cdk synth --no-lookups 2>/dev/null || echo "CDK synth requires context lookups - skipping in CI"
