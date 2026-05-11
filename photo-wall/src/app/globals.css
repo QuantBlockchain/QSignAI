@@ -1,0 +1,332 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap');
+
+:root {
+  --text: #2a2a2a;
+}
+
+body {
+  font-family: "Caveat", cursive, sans-serif;
+  background: #050510;
+  color: var(--text);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ========== Sci-fi Background ========== */
+.sci-fi-bg {
+  background-color: #06060f;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Grid layer */
+.sci-fi-grid {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 200, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 200, 255, 0.08) 1px, transparent 1px);
+  background-size: 80px 80px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Nebula layer 1 — large slow blobs */
+.sci-fi-nebula-1 {
+  position: fixed;
+  inset: -30%;
+  background:
+    radial-gradient(ellipse 50% 40% at 15% 25%, rgba(0, 140, 255, 0.35) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 50% at 85% 20%, rgba(160, 0, 255, 0.30) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 35% at 55% 80%, rgba(0, 255, 140, 0.25) 0%, transparent 65%);
+  animation: nebula1 20s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Nebula layer 2 — smaller faster accent blobs */
+.sci-fi-nebula-2 {
+  position: fixed;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 30% 25% at 70% 65%, rgba(255, 50, 100, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 25% 30% at 25% 70%, rgba(255, 180, 0, 0.20) 0%, transparent 60%),
+    radial-gradient(ellipse 20% 25% at 50% 30%, rgba(0, 220, 255, 0.18) 0%, transparent 60%);
+  animation: nebula2 15s ease-in-out infinite alternate-reverse;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes nebula1 {
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate(4%, -3%) scale(1.08) rotate(1deg);
+    filter: hue-rotate(20deg);
+  }
+  100% {
+    transform: translate(-3%, 2%) scale(0.95) rotate(-1deg);
+    filter: hue-rotate(40deg);
+  }
+}
+
+@keyframes nebula2 {
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate(-5%, 4%) scale(1.1) rotate(-2deg);
+    filter: hue-rotate(-15deg);
+  }
+  100% {
+    transform: translate(3%, -2%) scale(0.93) rotate(1deg);
+    filter: hue-rotate(-30deg);
+  }
+}
+
+/* Vignette */
+.sci-fi-bg::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(6, 6, 15, 0.6) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ========== Sticky Note Colors - Rich Palette ========== */
+/* Warm tones */
+.note-sunflower { background: linear-gradient(135deg, #fff9b1 0%, #ffe066 100%); }
+.note-peach { background: linear-gradient(135deg, #ffd6c0 0%, #ffab8a 100%); }
+.note-salmon { background: linear-gradient(135deg, #ffb3ba 0%, #ff8a95 100%); }
+.note-coral { background: linear-gradient(135deg, #ff9a9e 0%, #ff6b7a 100%); }
+.note-rose { background: linear-gradient(135deg, #ffc2e2 0%, #ff8ec4 100%); }
+.note-tangerine { background: linear-gradient(135deg, #ffe0b2 0%, #ffb74d 100%); }
+/* Cool tones */
+.note-sky { background: linear-gradient(135deg, #bae1ff 0%, #7ec8ff 100%); }
+.note-arctic { background: linear-gradient(135deg, #b3ecff 0%, #6dd5ed 100%); }
+.note-lavender { background: linear-gradient(135deg, #e8baff 0%, #c56cf0 100%); }
+.note-lilac { background: linear-gradient(135deg, #d5b3ff 0%, #a78bfa 100%); }
+.note-mint { background: linear-gradient(135deg, #a8edea 0%, #5de0d3 100%); }
+.note-spring { background: linear-gradient(135deg, #baffc9 0%, #7bed9f 100%); }
+.note-lime { background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%); }
+/* Unique tones */
+.note-bubblegum { background: linear-gradient(135deg, #fbc2eb 0%, #e97fcf 100%); }
+.note-electric { background: linear-gradient(135deg, #a1c4fd 0%, #6fa3ef 100%); }
+.note-aurora { background: linear-gradient(135deg, #c3fae8 0%, #63e6be 100%); }
+
+/* ========== Sticky Note Base ========== */
+.sticky-note {
+  position: relative;
+  padding: 20px 18px 16px;
+  min-height: 80px;
+  box-shadow:
+    2px 3px 15px rgba(0,0,0,0.5),
+    0 0 1px rgba(0,0,0,0.2),
+    inset 0 0 40px rgba(255,255,255,0.05);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease,
+              z-index 0s;
+  cursor: default;
+  transform: rotate(var(--rot, 0deg));
+}
+
+/* Paper fold shadow — bottom edge */
+.sticky-note::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.06));
+  pointer-events: none;
+  z-index: 0;
+}
+
+
+.sticky-note:hover {
+  transform: rotate(0deg) scale(1.1) translateY(-8px) !important;
+  box-shadow:
+    6px 12px 35px rgba(0,0,0,0.6),
+    0 0 3px rgba(0,0,0,0.2),
+    0 0 60px rgba(0, 200, 255, 0.08);
+  z-index: 100 !important;
+}
+
+/* Photo sticky */
+.sticky-photo {
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sticky-photo img {
+  width: 100%;
+  display: block;
+  border-bottom: 1px dashed rgba(0,0,0,0.1);
+}
+
+.sticky-photo .note-content {
+  padding: 12px 18px 14px;
+}
+
+/* ========== Decorations ========== */
+.push-pin {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.5),
+    inset 0 -2px 3px rgba(0,0,0,0.3),
+    inset 0 2px 3px rgba(255,255,255,0.4);
+}
+
+.push-pin::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 5px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.6);
+}
+
+.tape-strip {
+  position: absolute;
+  z-index: 10;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(2px);
+  border-radius: 1px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.tape-top {
+  top: 2px;
+  left: 15%;
+  right: 15%;
+  transform: rotate(var(--tape-rot, -2deg));
+}
+
+.tape-corner {
+  top: 2px;
+  width: 45px;
+  transform: rotate(var(--tape-rot, 35deg));
+}
+
+.tape-left { left: 2px; }
+.tape-right { right: 2px; }
+
+/* ========== Quantum Tooltip ========== */
+.q-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 9999;
+  background: rgba(15, 15, 30, 0.95);
+  color: #e0e0ff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6), 0 0 1px rgba(100,100,255,0.3);
+  border: 1px solid rgba(100, 100, 255, 0.2);
+  pointer-events: none;
+}
+
+.q-badge-wrap:hover .q-tooltip {
+  display: block;
+}
+
+/* ========== Quantum Signature Breathing ========== */
+@keyframes breathingDot {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.5); box-shadow: 0 0 8px rgba(100, 100, 255, 0.6); }
+}
+
+/* ========== Animations ========== */
+@keyframes dropIn {
+  0% {
+    opacity: 0;
+    transform: rotate(calc(var(--rot, 0deg) + 10deg)) translateY(-400px) scale(0.4);
+    filter: blur(4px);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(calc(var(--rot, 0deg) - 3deg)) translateY(12px) scale(1.03);
+    filter: blur(0px);
+  }
+  80% {
+    transform: rotate(calc(var(--rot, 0deg) + 1deg)) translateY(-4px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--rot, 0deg)) translateY(0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+.animate-drop {
+  opacity: 0;
+  animation: dropIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* Handwritten text */
+.handwritten {
+  font-family: "Caveat", cursive;
+  line-height: 1.4;
+}
+
+/* ========== Live Indicator ========== */
+@keyframes ping {
+  0% { transform: scale(1); opacity: 1; }
+  75%, 100% { transform: scale(2.5); opacity: 0; }
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  background: #00ff88;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+  box-shadow: 0 0 10px #00ff88;
+}
+
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #00ff88;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ========== HUD elements ========== */
+.hud-text {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0, 200, 255, 0.15); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 200, 255, 0.3); }

@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# CDK
+cdk.out/
+cdk.context.json
+
+# Next.js
+.next/
+out/
+dist/
+build/
+
+# CDK compiled output (root level only)
+/*.js
+/*.d.ts
+/*.js.map
+/bin/*.js
+/bin/*.d.ts
+/lib/*.js
+/lib/*.d.ts
+
+# Environment files
+.env
+.env.*
+*.secret
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+
+# Logs
+*.log
+
+# Lock files in subdirectories (root lock file is kept)
+photo-wall/package-lock.json
