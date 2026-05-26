@@ -13,7 +13,6 @@
   <a href="https://aws.amazon.com/braket/"><img src="https://img.shields.io/badge/AWS_Braket-SV1-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="AWS Braket SV1" /></a>
   <a href="https://aws.amazon.com/cdk/"><img src="https://img.shields.io/badge/AWS_CDK-TypeScript-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white" alt="AWS CDK" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="https://2026.acaitconf.com/singer/426.html"><img src="https://img.shields.io/badge/ACAIT_2026-Paper_Submitted-6366f1?style=for-the-badge" alt="ACAIT 2026" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge" alt="MIT License" /></a>
 </p>
 
