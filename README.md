@@ -2,9 +2,10 @@
 
 <img src="photo-wall/public/logo.png" alt="QSignAI Logo" width="120" />
 
-# ⚛️ QSignAI
+# ⚛️ QSignAI 
+![DOI](https://zenodo.org/badge/1235249780.svg)](https://doi.org/10.5281/zenodo.20392816)
 
-### Quantum-Randomness-Seeded Identity Signatures at the Intersection of AI for Science and Science for AI [![DOI](https://zenodo.org/badge/1235249780.svg)](https://doi.org/10.5281/zenodo.20392816)
+### Quantum-Randomness-Seeded Identity Signatures at the Intersection of AI for Science and Science for AI   
 
 <p>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 15" /></a>
