@@ -888,7 +888,6 @@ REST (Representational State Transfer) is a convention for organising these meth
 
 **On the "ToyLWE" label:** LWE (Learning With Errors) underpins NIST post-quantum standards (CRYSTALS-Dilithium, FIPS 204). The "Toy" implementation here is intentionally simplified for demonstration — a pedagogical bridge between quantum randomness and post-quantum cryptographic concepts, and a direct intellectual descendant of Bennett & Brassard's 2025 Turing Award-winning work.
 
-> 📄 **Research paper:** *QSignAI: Quantum-Randomness-Seeded Identity Signatures at the Intersection of AI for Science and Science for AI* — submitted to [ACAIT 2026](https://2026.acaitconf.com/singer/426.html), tracks 3.1 AI for Science and 2.2 Human-Computer Interaction.
 
 ---
 
