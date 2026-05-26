@@ -53,8 +53,6 @@ This project uses a **quantum simulator** (AWS Braket SV1) to run small quantum 
 
 ## 🎓 Research Context
 
-> This repository is the open-source implementation accompanying a paper submitted to [ACAIT 2026](https://2026.acaitconf.com/singer/426.html) — the Asian Conference on Artificial Intelligence Technology, theme **"AI for Better Life"**.
-
 ### Background
 
 The 2024–2025 Nobel and Turing awards recognised AI and quantum science in the same breath:
