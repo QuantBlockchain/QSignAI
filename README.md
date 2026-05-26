@@ -3,7 +3,8 @@
 <img src="photo-wall/public/logo.png" alt="QSignAI Logo" width="120" />
 
 # ⚛️ QSignAI 
-[![DOI](https://zenodo.org/badge/1235249780.svg)](https://doi.org/10.5281/zenodo.20392816)
+
+<a href="https://doi.org/10.5281/zenodo.20392816"><img src="https://zenodo.org/badge/1235249780.svg" alt="DOI"></a>
 
 ### Quantum-Randomness-Seeded Identity Signatures at the Intersection of AI for Science and Science for AI   
 
