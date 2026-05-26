@@ -28,7 +28,7 @@
 
 ---
 
-> **QSignAI** is a production-deployed, open-source platform demonstrating a **bidirectional relationship between AI and quantum science** in a real-time event participation system. Quantum randomness — harvested from real quantum circuits — strengthens AI-driven identity (**Science for AI**); and the AI bot layer makes quantum phenomena perceptually legible to general audiences (**AI for Science**). Deployed on Telegram (1B+ MAU) as a case study; the architecture is platform-agnostic.
+> **QSignAI** is a production-deployed, open-source platform demonstrating a **bidirectional relationship between AI and quantum science** in a real-time event participation system. Quantum randomness — harvested from real quantum circuits — strengthens AI-driven identity (**Science for AI**); and the AI bot layer makes quantum phenomena perceptually legible to general audiences (**AI for Science**). Deployed on Telegram as a case study; the architecture is platform-agnostic.
 
 </div>
 
