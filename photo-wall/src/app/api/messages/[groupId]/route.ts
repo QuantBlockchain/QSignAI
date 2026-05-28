@@ -6,20 +6,11 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { dynamodb, s3, getSecretValue } from "@/lib/aws";
+import { dynamodb, s3 } from "@/lib/aws";
 import { getGroup, validateGroupId } from "@/lib/config";
 
 const TABLE_NAME = process.env.TABLE_NAME || "";
 const BUCKET_NAME = process.env.BUCKET_NAME || "";
-const ADMIN_SECRET_ARN = process.env.ADMIN_SECRET_ARN || "";
-
-async function verifyAdmin(request: NextRequest): Promise<boolean> {
-  const auth = request.headers.get("authorization");
-  if (!auth || !auth.startsWith("Bearer ")) return false;
-  const token = auth.substring(7);
-  const password = await getSecretValue(ADMIN_SECRET_ARN);
-  return token === password;
-}
 
 export async function GET(
   request: NextRequest,
@@ -133,10 +124,6 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ groupId: string }> }
 ) {
-  if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { groupId } = await params;
 
   if (!validateGroupId(groupId)) {
@@ -217,10 +204,6 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ groupId: string }> }
 ) {
-  if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { groupId } = await params;
 
   if (!validateGroupId(groupId)) {
