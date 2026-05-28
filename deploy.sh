@@ -5,6 +5,15 @@ echo "========================================="
 echo "Telegram Photo Wall - AWS Deployment"
 echo "========================================="
 
+# Load .env if present (gitignored — holds real domain/groups overrides)
+if [ -f .env ]; then
+    echo "Loading .env"
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
+fi
+
 # Check AWS credentials
 echo "Checking AWS credentials..."
 aws sts get-caller-identity > /dev/null 2>&1 || {

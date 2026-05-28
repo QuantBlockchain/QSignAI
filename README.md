@@ -525,64 +525,55 @@ aws secretsmanager create-secret \
   --region us-west-2
 ```
 
-### Step 2 — Configure Groups in `cdk.json`
+### Step 2 — Create `.env` from `.env.example`
 
-```json
-{
-  "context": {
-    "telegramGroups": [
-      {
-        "groupId": "my-team",
-        "chatId": "-1001234567890",
-        "name": "My Team Photo Wall",
-        "secretName": "telegram/bot-token/my-team",
-        "botUsername": "my_photo_wall_bot"
-      }
-    ]
-  }
-}
+The repo ships with `.env.example` (placeholder values). Copy it to `.env` (gitignored) and fill in your real domain + Telegram groups. `deploy.sh` sources `.env` and exposes the values to the CDK app, where they override the `domain` and `telegramGroups` placeholders in `cdk.json`.
+
+```bash
+cp .env.example .env
+# then edit .env with your real values
 ```
+
+`.env` schema:
+
+| Variable | Required? | Description |
+|---|---|---|
+| `DOMAIN_NAME` | optional | Custom subdomain, e.g. `wall.example.com`. Omit to use the CloudFront default URL. |
+| `DOMAIN_HOSTED_ZONE_ID` | with domain | Route53 Hosted Zone ID for the parent zone |
+| `DOMAIN_HOSTED_ZONE_NAME` | with domain | Parent zone name, e.g. `example.com` |
+| `DOMAIN_CERTIFICATE_ARN` | with domain | ACM cert ARN — **must be in `us-east-1`** for CloudFront |
+| `TELEGRAM_GROUPS` | required | JSON array, **wrap in single quotes** so bash preserves the inner double quotes |
+
+Each group in `TELEGRAM_GROUPS` has:
 
 | Field | Description | Example |
 |---|---|---|
 | `groupId` | URL slug for the wall | `my-team` |
 | `chatId` | Telegram group Chat ID | `-1001234567890` |
 | `name` | Display name on the wall | `My Team Photo Wall` |
-| `secretName` | Secrets Manager secret name | `telegram/bot-token/my-team` |
-| `botUsername` | Bot's @username (only @mentions shown) | `my_photo_wall_bot` |
-
-### Step 3 — (Optional) Configure Custom Domain
-
-```json
-{
-  "context": {
-    "domain": {
-      "name": "wall.example.com",
-      "hostedZoneId": "ZXXXXXXXXXXXXX",
-      "hostedZoneName": "example.com",
-      "certificateArn": "arn:aws:acm:us-east-1:123456789:certificate/xxx"
-    }
-  }
-}
-```
+| `secretName` | Secrets Manager secret name (must already exist, see Step 1) | `telegram/bot-token/my-team` |
+| `botUsername` | Bot's @username (only @mentions are shown) | `my_photo_wall_bot` |
 
 > ACM certificate **must** be requested in `us-east-1` for CloudFront. CDK automatically creates the Route53 A record alias.
 
-### Step 4 — Deploy
+### Step 3 — Deploy
 
 ```bash
 ./deploy.sh
 ```
 
+`deploy.sh` automatically loads `.env`, runs `npm install`, builds the frontend, and `cdk deploys` to the region from `AWS_DEFAULT_REGION` (defaults to `us-east-1`).
+
 Or manually:
 
 ```bash
+set -a && source .env && set +a
 npm install
 cd photo-wall && npm install && npm run build && cd ..
 npx cdk deploy
 ```
 
-### Step 5 — Register the Telegram Webhook
+### Step 4 — Register the Telegram Webhook
 
 ```bash
 WEBHOOK_SECRET=$(aws secretsmanager get-secret-value \
@@ -599,7 +590,7 @@ curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
   }'
 ```
 
-### Step 6 — Add Bot to Telegram Group
+### Step 5 — Add Bot to Telegram Group
 
 1. Add your bot to the Telegram group
 2. In **BotFather → Bot Settings → Group Privacy → Turn off** (so the bot can read all messages)
