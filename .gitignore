@@ -16,6 +16,7 @@ cdk.context.json
 out/
 dist/
 build/
+*.tsbuildinfo
 
 # CDK compiled output (root level only)
 /*.js
