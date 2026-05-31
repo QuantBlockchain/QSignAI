@@ -1,25 +1,63 @@
 @import "tailwindcss";
 
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap');
 
-:root {
+:root,
+[data-theme="dark"] {
   --text: #2a2a2a;
+  --body-bg: #050510;
+  --bg-base: #06060f;
+  --grid-line: rgba(0, 200, 255, 0.08);
+  --vignette: rgba(6, 6, 15, 0.6);
+  --nebula-1-a: rgba(0, 140, 255, 0.35);
+  --nebula-1-b: rgba(160, 0, 255, 0.30);
+  --nebula-1-c: rgba(0, 255, 140, 0.25);
+  --nebula-2-a: rgba(255, 50, 100, 0.22);
+  --nebula-2-b: rgba(255, 180, 0, 0.20);
+  --nebula-2-c: rgba(0, 220, 255, 0.18);
+  --logo-glow: 0 0 32px rgba(120, 200, 255, 0.55), 0 0 8px rgba(180, 120, 255, 0.6);
+  --logo-stroke: rgba(255, 255, 255, 0.95);
+  --toggle-bg: rgba(15, 15, 30, 0.55);
+  --toggle-border: rgba(120, 200, 255, 0.3);
+  --toggle-fg: #cfe7ff;
+}
+
+[data-theme="light"] {
+  --text: #1a1a2a;
+  --body-bg: #f1f4f9;
+  --bg-base: #f5f7fb;
+  --grid-line: rgba(60, 110, 200, 0.10);
+  --vignette: rgba(180, 195, 220, 0.45);
+  --nebula-1-a: rgba(120, 170, 255, 0.30);
+  --nebula-1-b: rgba(200, 150, 255, 0.28);
+  --nebula-1-c: rgba(140, 230, 200, 0.28);
+  --nebula-2-a: rgba(255, 160, 180, 0.22);
+  --nebula-2-b: rgba(255, 220, 160, 0.22);
+  --nebula-2-c: rgba(160, 220, 255, 0.22);
+  --logo-glow: 0 0 24px rgba(80, 120, 200, 0.30);
+  --logo-stroke: rgba(30, 50, 110, 0.92);
+  --toggle-bg: rgba(255, 255, 255, 0.7);
+  --toggle-border: rgba(60, 110, 200, 0.35);
+  --toggle-fg: #1e3a6b;
 }
 
 body {
   font-family: "Caveat", cursive, sans-serif;
-  background: #050510;
+  background: var(--body-bg);
   color: var(--text);
   overflow: hidden;
   height: 100vh;
   width: 100vw;
+  transition: background 0.4s ease;
 }
 
 /* ========== Sci-fi Background ========== */
 .sci-fi-bg {
-  background-color: #06060f;
+  background-color: var(--bg-base);
   position: relative;
   overflow: hidden;
+  transition: background-color 0.4s ease;
 }
 
 /* Grid layer */
@@ -27,8 +65,8 @@ body {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(0, 200, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 200, 255, 0.08) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 80px 80px;
   pointer-events: none;
   z-index: 0;
@@ -39,9 +77,9 @@ body {
   position: fixed;
   inset: -30%;
   background:
-    radial-gradient(ellipse 50% 40% at 15% 25%, rgba(0, 140, 255, 0.35) 0%, transparent 65%),
-    radial-gradient(ellipse 40% 50% at 85% 20%, rgba(160, 0, 255, 0.30) 0%, transparent 65%),
-    radial-gradient(ellipse 45% 35% at 55% 80%, rgba(0, 255, 140, 0.25) 0%, transparent 65%);
+    radial-gradient(ellipse 50% 40% at 15% 25%, var(--nebula-1-a) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 50% at 85% 20%, var(--nebula-1-b) 0%, transparent 65%),
+    radial-gradient(ellipse 45% 35% at 55% 80%, var(--nebula-1-c) 0%, transparent 65%);
   animation: nebula1 20s ease-in-out infinite alternate;
   pointer-events: none;
   z-index: 0;
@@ -52,9 +90,9 @@ body {
   position: fixed;
   inset: -20%;
   background:
-    radial-gradient(ellipse 30% 25% at 70% 65%, rgba(255, 50, 100, 0.22) 0%, transparent 60%),
-    radial-gradient(ellipse 25% 30% at 25% 70%, rgba(255, 180, 0, 0.20) 0%, transparent 60%),
-    radial-gradient(ellipse 20% 25% at 50% 30%, rgba(0, 220, 255, 0.18) 0%, transparent 60%);
+    radial-gradient(ellipse 30% 25% at 70% 65%, var(--nebula-2-a) 0%, transparent 60%),
+    radial-gradient(ellipse 25% 30% at 25% 70%, var(--nebula-2-b) 0%, transparent 60%),
+    radial-gradient(ellipse 20% 25% at 50% 30%, var(--nebula-2-c) 0%, transparent 60%);
   animation: nebula2 15s ease-in-out infinite alternate-reverse;
   pointer-events: none;
   z-index: 0;
@@ -93,9 +131,171 @@ body {
   content: "";
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, transparent 40%, rgba(6, 6, 15, 0.6) 100%);
+  background: radial-gradient(ellipse at center, transparent 40%, var(--vignette) 100%);
   pointer-events: none;
   z-index: 1;
+}
+
+/* ========== QSignAI Text Logo ========== */
+.qsignai-logo {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-family: "Orbitron", "SF Mono", monospace;
+  font-weight: 900;
+  font-size: clamp(1.4rem, 2.2vw, 2.2rem);
+  letter-spacing: 0.16em;
+  user-select: none;
+  pointer-events: none;
+  text-shadow: var(--logo-glow);
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.qsignai-q {
+  background: linear-gradient(135deg, #00e0ff 0%, #b080ff 55%, #ff7ed6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 0 14px rgba(120, 200, 255, 0.55));
+}
+
+[data-theme="light"] .qsignai-q {
+  background: linear-gradient(135deg, #0072c6 0%, #6a3fc4 55%, #b73c8a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 4px rgba(60, 90, 180, 0.25));
+}
+
+.qsignai-rest {
+  color: var(--logo-stroke);
+  margin-left: 0.04em;
+}
+
+/* ========== Theme Toggle ========== */
+.theme-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--toggle-border);
+  color: var(--toggle-fg);
+  cursor: pointer;
+  padding: 0;
+  margin-right: 4px;
+  transition: transform 0.2s ease, background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.theme-toggle:hover {
+  transform: scale(1.1);
+  background: var(--toggle-bg);
+}
+
+.theme-toggle:active {
+  transform: scale(0.9);
+}
+
+/* ========== Status bar text (Live / notes) — theme-aware ========== */
+.status-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.status-divider {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .status-label {
+  color: rgba(35, 50, 90, 0.65);
+}
+
+[data-theme="light"] .status-divider {
+  color: rgba(35, 50, 90, 0.25);
+}
+
+/* ========== Leaderboard ========== */
+.leaderboard {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+  max-width: 90vw;
+  overflow: hidden;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+[data-theme="light"] .leaderboard {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(60, 110, 200, 0.18);
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-item.is-top {
+  background: rgba(255, 200, 0, 0.12);
+  border-color: rgba(255, 200, 0, 0.25);
+}
+
+[data-theme="light"] .leaderboard-item {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(60, 90, 150, 0.12);
+}
+
+[data-theme="light"] .leaderboard-item.is-top {
+  background: rgba(245, 175, 30, 0.18);
+  border-color: rgba(225, 150, 20, 0.45);
+}
+
+.leaderboard-rank {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 16px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.leaderboard-rank.rank-1 { color: #ffd700; }
+.leaderboard-rank.rank-2 { color: #c0c0c0; }
+.leaderboard-rank.rank-3 { color: #cd7f32; }
+
+[data-theme="light"] .leaderboard-rank { color: rgba(40, 60, 100, 0.55); }
+[data-theme="light"] .leaderboard-rank.rank-1 { color: #c98800; }
+[data-theme="light"] .leaderboard-rank.rank-2 { color: #6f7480; }
+[data-theme="light"] .leaderboard-rank.rank-3 { color: #a3601e; }
+
+.leaderboard-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+[data-theme="light"] .leaderboard-name {
+  color: rgba(35, 50, 90, 0.85);
 }
 
 /* ========== Sticky Note Colors - Rich Palette ========== */
