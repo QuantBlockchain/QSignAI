@@ -156,14 +156,14 @@ function shake256(data: Buffer, length: number): Buffer {
 }
 
 function toyLweSign(username: string, message: string, quantumSeed: number): { publicKeyHash: string; signature: string } {
+  // Deterministic: same (username, message, quantumSeed) → same key + signature.
+  // Public key derived from username + message so identical content → identical pkHash.
   const mix = Buffer.concat([
     Buffer.from("ToyLWE-KeyGen-v1"),
-    Buffer.from(String(quantumSeed)),
-    crypto.randomBytes(32),
+    Buffer.from(`${username}|${message}|${quantumSeed}`),
   ]);
   const xof = shake256(mix, 64);
 
-  // Derive public key hash
   const pkHash = crypto
     .createHash("sha256")
     .update(xof.subarray(0, 32))
@@ -171,7 +171,6 @@ function toyLweSign(username: string, message: string, quantumSeed: number): { p
     .substring(0, 12)
     .toUpperCase();
 
-  // Sign
   const msgHash = crypto.createHash("sha256").update(`${username}|${message}|${quantumSeed}`).digest("hex");
   const entropyHash = crypto.createHash("sha256").update(String(quantumSeed)).digest("hex");
   const sigHash = crypto.createHash("sha256").update(`${msgHash}:${entropyHash}:${pkHash}`).digest("hex");
@@ -215,8 +214,8 @@ export async function generateQuantumSignature(
     console.error("[braket] SV1 failed, falling back to local crypto:", err);
     device = "local-fallback";
 
-    // Fallback: crypto-based
-    const seed = shake256(Buffer.from(`quantum:${username}:${Date.now()}`), 4);
+    // Fallback: crypto-based, deterministic on (username, message)
+    const seed = shake256(Buffer.from(`quantum:${username}:${messageText}`), 4);
     quantumNumber = seed.readUInt16BE(0) % 1001;
     bellState = [0.5, 0.0, 0.0, 0.5];
   }
