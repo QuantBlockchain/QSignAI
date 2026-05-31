@@ -298,6 +298,347 @@ body {
   color: rgba(35, 50, 90, 0.85);
 }
 
+/* ========== Admin Page ========== */
+:root,
+[data-theme="dark"] {
+  --admin-bg: #0a0a1a;
+  --admin-card-bg: #12122a;
+  --admin-fg: #e0e0ff;
+  --admin-fg-muted: #8a8aaa;
+  --admin-fg-dim: #666;
+  --admin-accent: #00d4ff;
+  --admin-accent-strong: #0088cc;
+  --admin-border: rgba(255, 255, 255, 0.15);
+  --admin-border-dim: rgba(255, 255, 255, 0.1);
+  --admin-border-faint: rgba(255, 255, 255, 0.05);
+  --admin-row-hover: rgba(255, 255, 255, 0.03);
+  --admin-input-bg: rgba(255, 255, 255, 0.05);
+  --admin-select-bg: #1a1a3a;
+  --admin-ghost-bg: rgba(255, 255, 255, 0.1);
+  --admin-ghost-border: rgba(255, 255, 255, 0.2);
+  --admin-ghost-fg: #aaa;
+  --admin-accent-bg: rgba(0, 200, 255, 0.15);
+  --admin-accent-border: rgba(0, 200, 255, 0.3);
+  --admin-danger-bg: rgba(220, 40, 40, 0.2);
+  --admin-danger-border: rgba(220, 40, 40, 0.4);
+  --admin-danger-fg: #ff6b6b;
+  --admin-hide-bg: rgba(220, 40, 40, 0.15);
+  --admin-hide-border: rgba(220, 40, 40, 0.3);
+  --admin-thumb-border: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] {
+  --admin-bg: #f5f7fb;
+  --admin-card-bg: #ffffff;
+  --admin-fg: #1a1f3a;
+  --admin-fg-muted: #5a6680;
+  --admin-fg-dim: #8a94a8;
+  --admin-accent: #0072c6;
+  --admin-accent-strong: #1565c0;
+  --admin-border: rgba(60, 90, 150, 0.18);
+  --admin-border-dim: rgba(60, 90, 150, 0.12);
+  --admin-border-faint: rgba(60, 90, 150, 0.06);
+  --admin-row-hover: rgba(60, 110, 200, 0.04);
+  --admin-input-bg: rgba(60, 110, 200, 0.04);
+  --admin-select-bg: #ffffff;
+  --admin-ghost-bg: rgba(60, 90, 150, 0.06);
+  --admin-ghost-border: rgba(60, 90, 150, 0.18);
+  --admin-ghost-fg: #4a5a7a;
+  --admin-accent-bg: rgba(0, 114, 198, 0.10);
+  --admin-accent-border: rgba(0, 114, 198, 0.30);
+  --admin-danger-bg: rgba(200, 40, 40, 0.10);
+  --admin-danger-border: rgba(200, 40, 40, 0.30);
+  --admin-danger-fg: #c62828;
+  --admin-hide-bg: rgba(200, 40, 40, 0.08);
+  --admin-hide-border: rgba(200, 40, 40, 0.22);
+  --admin-thumb-border: rgba(60, 90, 150, 0.18);
+}
+
+.admin-page {
+  min-height: 100vh;
+  background: var(--admin-bg);
+  color: var(--admin-fg);
+  font-family: sans-serif;
+  padding: 24px;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.admin-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Login screen */
+.admin-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.admin-login-card {
+  background: var(--admin-card-bg);
+  padding: 40px;
+  border-radius: 16px;
+  border: 1px solid var(--admin-accent-border);
+  width: 360px;
+}
+
+.admin-login-title {
+  color: var(--admin-accent);
+  font-size: 24px;
+  margin: 0 0 24px 0;
+  text-align: center;
+}
+
+.admin-toggle-corner {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+}
+
+.admin-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-input-bg);
+  color: var(--admin-fg);
+  font-size: 16px;
+  outline: none;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+.admin-error {
+  color: var(--admin-danger-fg);
+  font-size: 14px;
+  margin: 0 0 12px 0;
+}
+
+.admin-btn-primary {
+  width: 100%;
+  padding: 12px 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--admin-accent), var(--admin-accent-strong));
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Header */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.admin-title {
+  color: var(--admin-accent);
+  font-size: 24px;
+  margin: 0;
+}
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Buttons */
+.admin-btn-ghost {
+  background: var(--admin-ghost-bg);
+  border: 1px solid var(--admin-ghost-border);
+  color: var(--admin-ghost-fg);
+  border-radius: 6px;
+  padding: 6px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.admin-btn-accent {
+  background: var(--admin-accent-bg);
+  border: 1px solid var(--admin-accent-border);
+  color: var(--admin-accent);
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.admin-btn-danger {
+  background: var(--admin-danger-bg);
+  border: 1px solid var(--admin-danger-border);
+  color: var(--admin-danger-fg);
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.admin-btn-hide {
+  background: var(--admin-hide-bg);
+  border: 1px solid var(--admin-hide-border);
+  color: var(--admin-danger-fg);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.admin-mleft-auto { margin-left: auto; }
+
+/* Controls */
+.admin-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  align-items: center;
+}
+
+.admin-label {
+  color: var(--admin-fg-muted);
+  font-size: 14px;
+}
+
+.admin-select {
+  background: var(--admin-select-bg);
+  border: 1px solid var(--admin-border);
+  color: var(--admin-fg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+/* Sections */
+.admin-section {
+  margin-bottom: 32px;
+}
+
+.admin-section-title {
+  color: var(--admin-accent);
+  font-size: 16px;
+  margin: 0 0 12px 0;
+}
+
+.admin-count {
+  color: var(--admin-fg-muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.admin-loading {
+  color: var(--admin-fg-dim);
+  text-align: center;
+  padding: 40px;
+}
+
+/* Tables */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table thead tr {
+  border-bottom: 1px solid var(--admin-border-dim);
+}
+
+.admin-table tbody tr {
+  border-bottom: 1px solid var(--admin-border-faint);
+}
+
+.admin-table tbody tr:hover {
+  background: var(--admin-row-hover);
+}
+
+.admin-table th {
+  padding: 10px 8px;
+  text-align: left;
+  color: var(--admin-fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-table td {
+  padding: 8px;
+  font-size: 13px;
+}
+
+.admin-cell-muted {
+  color: var(--admin-fg-dim);
+  font-size: 12px !important;
+}
+
+.admin-cell-accent {
+  color: var(--admin-accent);
+  font-size: 12px !important;
+}
+
+.admin-cell-text {
+  font-size: 13px;
+  max-width: 300px;
+}
+
+.admin-rank {
+  font-weight: 700;
+  color: var(--admin-fg-dim);
+}
+
+.admin-rank.rank-1 { color: #ffd700; }
+.admin-rank.rank-2 { color: #c0c0c0; }
+.admin-rank.rank-3 { color: #cd7f32; }
+
+[data-theme="light"] .admin-rank.rank-1 { color: #c98800; }
+[data-theme="light"] .admin-rank.rank-2 { color: #6f7480; }
+[data-theme="light"] .admin-rank.rank-3 { color: #a3601e; }
+
+/* Message cell */
+.admin-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-msg-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  border: 1px solid var(--admin-thumb-border);
+}
+
+/* Lightbox */
+.admin-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.admin-lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
 /* ========== Sticky Note Colors - Rich Palette ========== */
 /* Warm tones */
 .note-sunflower { background: linear-gradient(135deg, #fff9b1 0%, #ffe066 100%); }
