@@ -60,22 +60,26 @@ function mentionsBot(message: any, botUsername: string): boolean {
   return fullText.toLowerCase().includes(`@${lower}`);
 }
 
-// Look up existing quantum signature for this sender in this group
+// Look up existing quantum signature for the same sender posting the same content.
+// Match is on (senderName, normalized text) — same content → same key, different content → new key.
 async function findExistingSignature(
   groupId: string,
-  senderName: string
+  senderName: string,
+  text: string
 ): Promise<{ quantumNumber: number; publicKeyHash: string; signature: string; bellState: string; algorithm: string; visualColor: string } | null> {
   const result = await dynamodb.send(
     new QueryCommand({
       TableName: TABLE_NAME,
       KeyConditionExpression: "PK = :pk",
-      FilterExpression: "senderName = :sn AND signatureStatus = :s",
+      FilterExpression: "senderName = :sn AND #txt = :tx AND signatureStatus = :s",
+      ExpressionAttributeNames: { "#txt": "text" },
       ExpressionAttributeValues: {
         ":pk": { S: `GROUP#${groupId}` },
         ":sn": { S: senderName },
+        ":tx": { S: text },
         ":s": { S: "completed" },
       },
-      Limit: 10,
+      Limit: 1,
       ScanIndexForward: false,
     })
   );
@@ -231,7 +235,7 @@ export async function POST(
 
     // Phase 2: Quantum signature — reuse existing if same sender already has one
     try {
-      const existing = await findExistingSignature(groupId, senderName);
+      const existing = await findExistingSignature(groupId, senderName, text);
 
       if (existing) {
         // Reuse existing quantum signature (no Braket call)

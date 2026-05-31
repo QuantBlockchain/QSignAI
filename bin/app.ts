@@ -16,6 +16,7 @@ const domainName = process.env.DOMAIN_NAME ?? ctxDomain.name;
 const hostedZoneId = process.env.DOMAIN_HOSTED_ZONE_ID ?? ctxDomain.hostedZoneId;
 const hostedZoneName = process.env.DOMAIN_HOSTED_ZONE_NAME ?? ctxDomain.hostedZoneName;
 const certificateArn = process.env.DOMAIN_CERTIFICATE_ARN ?? ctxDomain.certificateArn;
+const adminDefaultGroup = process.env.ADMIN_DEFAULT_GROUP ?? app.node.tryGetContext("adminDefaultGroup");
 
 new TelegramPhotoWallStack(app, "TelegramPhotoWallStack", {
   telegramGroups,
@@ -23,6 +24,7 @@ new TelegramPhotoWallStack(app, "TelegramPhotoWallStack", {
   hostedZoneId,
   hostedZoneName,
   certificateArn,
+  adminDefaultGroup,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION,

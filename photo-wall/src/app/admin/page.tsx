@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface Message {
   messageId: number;
@@ -49,7 +50,9 @@ export default function AdminPage() {
       const data = await res.json();
       setGroups(data.groups);
       if (data.groups.length > 0 && !selectedGroup) {
-        const preferred = data.groups.find((g: any) => g.groupId === "quantum-ai-web3");
+        const preferred = data.defaultGroup
+          ? data.groups.find((g: any) => g.groupId === data.defaultGroup)
+          : null;
         setSelectedGroup(preferred ? preferred.groupId : data.groups[0].groupId);
       }
     }
@@ -98,99 +101,57 @@ export default function AdminPage() {
   // Login screen
   if (!loggedIn) {
     return (
-      <div style={{
-        minHeight: "100vh", background: "#0a0a1a", display: "flex",
-        alignItems: "center", justifyContent: "center", fontFamily: "sans-serif",
-      }}>
-        <div style={{
-          background: "#12122a", padding: 40, borderRadius: 16,
-          border: "1px solid rgba(0,200,255,0.15)", width: 360,
-        }}>
-          <h1 style={{ color: "#00d4ff", fontSize: 24, marginBottom: 24, textAlign: "center" }}>
-            Admin Login
-          </h1>
+      <div className="admin-page admin-login">
+        <div className="admin-login-card">
+          <h1 className="admin-login-title">Admin Login</h1>
           <input
             type="password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && login()}
-            style={{
-              width: "100%", padding: "12px 16px", borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)",
-              color: "#fff", fontSize: 16, outline: "none", marginBottom: 16,
-              boxSizing: "border-box",
-            }}
+            className="admin-input"
           />
-          {error && <p style={{ color: "#ff6b6b", fontSize: 14, marginBottom: 12 }}>{error}</p>}
-          <button
-            onClick={login}
-            style={{
-              width: "100%", padding: "12px 0", borderRadius: 8,
-              background: "linear-gradient(135deg, #00d4ff, #0088cc)", border: "none",
-              color: "#fff", fontSize: 16, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            Login
-          </button>
+          {error && <p className="admin-error">{error}</p>}
+          <button onClick={login} className="admin-btn-primary">Login</button>
         </div>
+        <div className="admin-toggle-corner"><ThemeToggle /></div>
       </div>
     );
   }
 
   // Admin dashboard
   return (
-    <div style={{
-      minHeight: "100vh", background: "#0a0a1a", color: "#e0e0ff",
-      fontFamily: "sans-serif", padding: 24,
-    }}>
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div className="admin-page">
+      <div className="admin-container">
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <h1 style={{ color: "#00d4ff", fontSize: 24, margin: 0 }}>Photo Wall Admin</h1>
-          <button
-            onClick={() => { setLoggedIn(false); setToken(""); }}
-            style={{
-              background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-              color: "#aaa", borderRadius: 6, padding: "6px 16px", cursor: "pointer", fontSize: 13,
-            }}
-          >
-            Logout
-          </button>
+        <div className="admin-header">
+          <h1 className="admin-title">Photo Wall Admin</h1>
+          <div className="admin-header-actions">
+            <ThemeToggle />
+            <button
+              onClick={() => { setLoggedIn(false); setToken(""); }}
+              className="admin-btn-ghost"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Group selector */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 24, alignItems: "center" }}>
-          <label style={{ color: "#8a8aaa", fontSize: 14 }}>Group:</label>
+        <div className="admin-controls">
+          <label className="admin-label">Group:</label>
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
-            style={{
-              background: "#1a1a3a", border: "1px solid rgba(255,255,255,0.15)",
-              color: "#fff", borderRadius: 6, padding: "8px 12px", fontSize: 14,
-            }}
+            className="admin-select"
           >
             {groups.map((g) => (
               <option key={g.groupId} value={g.groupId}>{g.name}</option>
             ))}
           </select>
-          <button
-            onClick={fetchMessages}
-            style={{
-              background: "rgba(0,200,255,0.15)", border: "1px solid rgba(0,200,255,0.3)",
-              color: "#00d4ff", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13,
-            }}
-          >
-            Refresh
-          </button>
-          <button
-            onClick={clearAll}
-            style={{
-              background: "rgba(220,40,40,0.2)", border: "1px solid rgba(220,40,40,0.4)",
-              color: "#ff6b6b", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontSize: 13,
-              marginLeft: "auto",
-            }}
-          >
+          <button onClick={fetchMessages} className="admin-btn-accent">Refresh</button>
+          <button onClick={clearAll} className="admin-btn-danger admin-mleft-auto">
             Clear All Messages
           </button>
         </div>
@@ -198,7 +159,6 @@ export default function AdminPage() {
         {/* User summary */}
         {messages.length > 0 && (() => {
           const userMap = new Map<string, { name: string; count: number; firstTime: number; lastTime: number; qn: number | null }>();
-          // messages are newest-first from API, iterate to build stats
           for (const m of messages) {
             const existing = userMap.get(m.senderName);
             if (existing) {
@@ -215,38 +175,29 @@ export default function AdminPage() {
               });
             }
           }
-          // Sort by first message time ascending
           const users = Array.from(userMap.values()).sort((a, b) => a.firstTime - b.firstTime);
           return (
-            <div style={{ marginBottom: 32 }}>
-              <h2 style={{ color: "#00d4ff", fontSize: 16, marginBottom: 12 }}>
-                Users ({users.length})
-              </h2>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div className="admin-section">
+              <h2 className="admin-section-title">Users ({users.length})</h2>
+              <table className="admin-table">
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  <tr>
                     {["#", "Name", "Messages", "Quantum Sig", "First Message", "Last Message"].map((h) => (
-                      <th key={h} style={{ padding: "8px", textAlign: "left", color: "#8a8aaa", fontSize: 12, fontWeight: 600 }}>{h}</th>
+                      <th key={h}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((u, i) => (
-                    <tr key={u.name} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                      <td style={{ padding: "8px", fontSize: 13, color: i === 0 ? "#ffd700" : i === 1 ? "#c0c0c0" : i === 2 ? "#cd7f32" : "#666" , fontWeight: 700 }}>
-                        {i + 1}
-                      </td>
-                      <td style={{ padding: "8px", fontSize: 13 }}>{u.name}</td>
-                      <td style={{ padding: "8px", fontSize: 13, color: "#8a8aaa" }}>{u.count}</td>
-                      <td style={{ padding: "8px", fontSize: 12, color: u.qn != null ? "#00d4ff" : "#666" }}>
+                    <tr key={u.name}>
+                      <td className={`admin-rank rank-${i + 1}`}>{i + 1}</td>
+                      <td>{u.name}</td>
+                      <td className="admin-cell-muted">{u.count}</td>
+                      <td className={u.qn != null ? "admin-cell-accent" : "admin-cell-muted"}>
                         {u.qn != null ? `Q#${u.qn}` : "-"}
                       </td>
-                      <td style={{ padding: "8px", fontSize: 12, color: "#666" }}>
-                        {new Date(u.firstTime).toLocaleString("zh-CN")}
-                      </td>
-                      <td style={{ padding: "8px", fontSize: 12, color: "#666" }}>
-                        {new Date(u.lastTime).toLocaleString("zh-CN")}
-                      </td>
+                      <td className="admin-cell-muted">{new Date(u.firstTime).toLocaleString("zh-CN")}</td>
+                      <td className="admin-cell-muted">{new Date(u.lastTime).toLocaleString("zh-CN")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -256,63 +207,46 @@ export default function AdminPage() {
         })()}
 
         {/* Messages table */}
-        <div style={{ color: "#8a8aaa", fontSize: 13, marginBottom: 8 }}>
-          {messages.length} messages
-        </div>
+        <div className="admin-count">{messages.length} messages</div>
 
         {loading ? (
-          <p style={{ color: "#666", textAlign: "center", padding: 40 }}>Loading...</p>
+          <p className="admin-loading">Loading...</p>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table className="admin-table">
             <thead>
-              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <tr>
                 {["ID", "Sender", "Text", "Type", "QSig", "Time", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 8px", textAlign: "left", color: "#8a8aaa", fontSize: 12, fontWeight: 600 }}>
-                    {h}
-                  </th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {messages.map((m) => (
-                <tr key={m.sk} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <td style={{ padding: "8px", fontSize: 13, color: "#666" }}>{m.messageId}</td>
-                  <td style={{ padding: "8px", fontSize: 13 }}>{m.senderName}</td>
-                  <td style={{ padding: "8px", fontSize: 13, maxWidth: 300 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <tr key={m.sk}>
+                  <td className="admin-cell-muted">{m.messageId}</td>
+                  <td>{m.senderName}</td>
+                  <td className="admin-cell-text">
+                    <div className="admin-msg">
                       {m.type === "photo" && m.photoUrl && (
                         <img
                           src={m.photoUrl}
                           alt="thumb"
                           onClick={() => setPreviewImg(m.photoUrl!)}
-                          style={{
-                            width: 48, height: 48, objectFit: "cover", borderRadius: 4,
-                            cursor: "pointer", flexShrink: 0, border: "1px solid rgba(255,255,255,0.1)",
-                          }}
+                          className="admin-thumb"
                         />
                       )}
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span className="admin-msg-text">
                         {m.text || (m.type === "photo" && !m.photoUrl ? "[Photo]" : "")}
                       </span>
                     </div>
                   </td>
-                  <td style={{ padding: "8px", fontSize: 12, color: "#666" }}>{m.type}</td>
-                  <td style={{ padding: "8px", fontSize: 12, color: m.signatureStatus === "completed" ? "#00d4ff" : "#666" }}>
+                  <td className="admin-cell-muted">{m.type}</td>
+                  <td className={m.signatureStatus === "completed" ? "admin-cell-accent" : "admin-cell-muted"}>
                     {m.signatureStatus === "completed" ? `Q#${m.quantumNumber}` : m.signatureStatus || "-"}
                   </td>
-                  <td style={{ padding: "8px", fontSize: 12, color: "#666" }}>
-                    {new Date(m.timestamp).toLocaleString("zh-CN")}
-                  </td>
-                  <td style={{ padding: "8px" }}>
-                    <button
-                      onClick={() => hideMessage(m.sk)}
-                      style={{
-                        background: "rgba(220,40,40,0.15)", border: "1px solid rgba(220,40,40,0.3)",
-                        color: "#ff6b6b", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 11,
-                      }}
-                    >
-                      Hide
-                    </button>
+                  <td className="admin-cell-muted">{new Date(m.timestamp).toLocaleString("zh-CN")}</td>
+                  <td>
+                    <button onClick={() => hideMessage(m.sk)} className="admin-btn-hide">Hide</button>
                   </td>
                 </tr>
               ))}
@@ -323,20 +257,8 @@ export default function AdminPage() {
 
       {/* Image preview lightbox */}
       {previewImg && (
-        <div
-          onClick={() => setPreviewImg(null)}
-          style={{
-            position: "fixed", inset: 0, zIndex: 9999,
-            background: "rgba(0,0,0,0.9)", backdropFilter: "blur(8px)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer",
-          }}
-        >
-          <img
-            src={previewImg}
-            alt="Preview"
-            style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }}
-          />
+        <div onClick={() => setPreviewImg(null)} className="admin-lightbox">
+          <img src={previewImg} alt="Preview" className="admin-lightbox-img" />
         </div>
       )}
     </div>

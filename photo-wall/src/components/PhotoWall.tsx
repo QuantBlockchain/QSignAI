@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import MessageCard from "./MessageCard";
 import Lightbox from "./Lightbox";
+import ThemeToggle from "./ThemeToggle";
 
 interface Message {
   messageId: number;
@@ -336,12 +337,13 @@ export default function PhotoWall({ groupId, maxLeaderboard = 10 }: PhotoWallPro
         className="font-sans select-none"
         style={{ position: "absolute", top: 10, right: 12, zIndex: 15, display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap", flexWrap: "nowrap" }}
       >
+        <ThemeToggle />
         <span className="flex items-center gap-2">
           <span className="live-dot" />
-          <span className="text-white/50 text-sm tracking-wider uppercase">Live</span>
+          <span className="status-label text-sm tracking-wider uppercase">Live</span>
         </span>
-        <span className="text-white/20">|</span>
-        <span className="text-white/40 text-sm">{messages.length} notes</span>
+        <span className="status-divider">|</span>
+        <span className="status-label text-sm">{messages.length} notes</span>
       </div>
 
       {loading && (
@@ -412,46 +414,13 @@ export default function PhotoWall({ groupId, maxLeaderboard = 10 }: PhotoWallPro
         }
         if (leaders.length === 0) return null;
         return (
-          <div
-            className="font-sans select-none"
-            style={{
-              position: "absolute",
-              bottom: 12,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 15,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 16px",
-              borderRadius: 12,
-              background: "rgba(0, 0, 0, 0.4)",
-              backdropFilter: "blur(8px)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              whiteSpace: "nowrap",
-              maxWidth: "90vw",
-              overflow: "hidden",
-            }}
-          >
+          <div className="font-sans select-none leaderboard">
             {leaders.map((l, i) => (
               <div
                 key={l.name}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "3px 10px",
-                  borderRadius: 8,
-                  background: i === 0 ? "rgba(255, 200, 0, 0.12)" : "rgba(255,255,255,0.05)",
-                  border: i === 0 ? "1px solid rgba(255, 200, 0, 0.25)" : "1px solid rgba(255,255,255,0.08)",
-                }}
+                className={`leaderboard-item${i === 0 ? " is-top" : ""}`}
               >
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: i === 0 ? "#ffd700" : i === 1 ? "#c0c0c0" : i === 2 ? "#cd7f32" : "rgba(255,255,255,0.4)",
-                  minWidth: 16,
-                }}>
+                <span className={`leaderboard-rank rank-${i + 1}`}>
                   #{i + 1}
                 </span>
                 {l.visualColor && (
@@ -462,11 +431,7 @@ export default function PhotoWall({ groupId, maxLeaderboard = 10 }: PhotoWallPro
                     flexShrink: 0,
                   }} />
                 )}
-                <span style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "rgba(255,255,255,0.75)",
-                }}>
+                <span className="leaderboard-name">
                   {l.name}
                 </span>
               </div>
