@@ -27,6 +27,7 @@ export interface TelegramPhotoWallStackProps extends cdk.StackProps {
   hostedZoneId?: string;     // Route53 hosted zone ID
   hostedZoneName?: string;   // e.g. "example.com"
   certificateArn?: string;   // ACM certificate ARN (us-east-1)
+  adminDefaultGroup?: string; // groupId pre-selected on the admin dashboard
 }
 
 export class TelegramPhotoWallStack extends cdk.Stack {
@@ -215,6 +216,7 @@ export class TelegramPhotoWallStack extends cdk.Stack {
         AWS_REGION_NAME: this.region,
         BRAKET_BUCKET: braketBucket.bucketName,
         ADMIN_SECRET_ARN: adminSecret.secretArn,
+        ...(props.adminDefaultGroup ? { ADMIN_DEFAULT_GROUP: props.adminDefaultGroup } : {}),
       },
     });
 

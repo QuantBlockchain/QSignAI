@@ -115,5 +115,6 @@ export async function GET(request: NextRequest) {
   }
 
   const groups = getGroups().map((g) => ({ groupId: g.groupId, name: g.name }));
-  return NextResponse.json({ groups });
+  const defaultGroup = process.env.ADMIN_DEFAULT_GROUP || "";
+  return NextResponse.json({ groups, defaultGroup });
 }
