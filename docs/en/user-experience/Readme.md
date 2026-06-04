@@ -16,7 +16,7 @@ Telegram Photo Wall is designed as an **event-grade interactive experience** dem
 
 The deployment combines three trends:
 
-- **Cloud-accessible quantum computing** — small-scale circuits (4-qubit randomness, 2-qubit Bell-state) executed on Amazon Braket SV1 within an event's latency budget,
+- **Cloud-accessible quantum computing** — small-scale circuits (two-source Hadamard randomness, 2-qubit Bell-state) executed on Amazon Braket SV1 + DM1 within an event's latency budget,
 - **Post-quantum identity primitives** — a per-user lattice-flavored ToyLWE keypair derived from quantum entropy, surfaced as a stable `Q#number | publicKeyHash` badge,
 - **Audience participation in distributed systems** — Telegram messages with an `@bot` mention act as the only entry point, providing a low-friction governance-style consent gate.
 
@@ -137,10 +137,10 @@ Project all approved contributions as a live, sci-fi-styled sticky-note wall des
 
 **Quantum Signature Pipeline (per new sender)**
 
-- **Task A — 4-qubit RNG circuit** on Braket SV1 (100 shots): H gates → CNOT chain → seeded `Ry` rotations → measure; top bitstring becomes `quantumNumber = int(top_bits, 2) mod 1001`
-- **Task B — 2-qubit Bell state** `|Φ⁺⟩` on Braket SV1 (200 shots): H on q[0] → CNOT(q[0],q[1]) → measure; result yields `bellState = [P(00), P(01), P(10), P(11)]`
-- **ToyLWE wrapper**: SHAKE-256(seed ‖ quantumNumber ‖ random) derives a keypair; SHA-256 chain produces the 24-character base64 signature; first 12 hex chars of the public-key digest become the badge identifier
-- Subsequent messages from the same `(groupId, senderId)` reuse the cached signature — no additional Braket call is made
+- **Two-source QRNG** on Braket: a 1-qubit Hadamard circuit sampled for its per-shot bit stream on SV1 (ideal) and on DM1 (noisy), condensed by a Toeplitz two-source extractor into uniform bits → `quantumNumber ∈ [0, 1000]` plus a 32-byte quantum nonce `r`
+- **Bell state** `|Φ⁺⟩` on Braket SV1 (200 shots): H on q[0] → CNOT(q[0],q[1]) → measure; result yields `bellState = [P(00), P(01), P(10), P(11)]`
+- **ToyLWE wrapper**: `SHAKE-256(username ‖ quantumNumber ‖ r)` derives a keypair; SHA-256 chain produces the 24-character base64 signature; first 12 hex chars of the public-key digest become the badge identifier
+- Subsequent messages from the same `(groupId, senderId)` reuse the stored bundle — no additional Braket call is made
 
 **User Actions**
 
@@ -172,7 +172,7 @@ Give event organizers a controlled surface to moderate live audience content, au
 - **Message table** surfaces sender, text, type (text/photo), timestamp, and `signatureStatus` (`generating` / `completed` / `fallback`)
 - **Soft delete**: `DELETE /api/messages/[groupId]?sk=...` flips a `hidden` flag in DynamoDB rather than removing the row, so audit history and quantum signatures remain intact
 - **Bulk clear**: `DELETE /api/admin?action=clear&groupId=X` soft-deletes all messages in a group — useful between event sessions
-- **Provenance view**: each row exposes `quantumNumber`, `publicKeyHash`, `bellState`, `algorithm` (`ToyLWE-Braket-SV1` or `ToyLWE-local-fallback`), and `device` (`SV1` or `local-fallback`)
+- **Provenance view**: each row exposes `quantumNumber`, `publicKeyHash`, `bellState`, `algorithm` (`ToyLWE-2Source-Toeplitz` or `ToyLWE-local-fallback`), and `device` (`SV1+DM1` or `local-fallback`)
 - All admin endpoints are reachable only via the CloudFront → ALB path with the secret-header check, so the dashboard is never exposed to direct ALB traffic
 
 **Admin Actions**
@@ -232,7 +232,7 @@ Across the three surfaces, the experience demonstrates that a quantum-authentica
 | Amazon Braket | AWS managed service for running circuits on quantum simulators and QPUs. |
 | SV1 | Braket's full state-vector simulator, used here for both circuits. |
 | Bell State | A maximally entangled two-qubit state; the Bell-state distribution acts as a structural witness in the badge. |
-| Quantum Random Number | Integer derived from the most-frequent measurement bitstring of the 4-qubit RNG circuit. |
+| Quantum Random Number | Integer in [0, 1000] from the Toeplitz two-source extractor over SV1 + DM1 Hadamard bit streams. |
 | ToyLWE | A demonstrative lattice-style key derivation and signature wrapper used to produce the per-user badge. |
 | Public Key Hash | First 12 hex characters of the SHA-256 digest of the ToyLWE public key. |
 | Signature Status | DynamoDB flag tracking whether a row is `generating`, `completed`, or in `fallback`. |

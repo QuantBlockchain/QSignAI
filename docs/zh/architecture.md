@@ -4,6 +4,7 @@
 
 Telegram 照片墙是一个由量子签名认证的实时活动照片墙系统。用户在 Telegram 群组中发送照片或文字，系统通过量子计算模块（AWS Braket SV1）处理后，将其作为可拖拽的便利贴卡片渲染到一个网页墙上。
 
+
 ## 系统级架构图
 
 ```
@@ -50,8 +51,8 @@ Telegram 照片墙是一个由量子签名认证的实时活动照片墙系统�
 ┌──────────────────────────┐ ┌─────────────┐ ┌──────────────────────────────────┐
 │  量子计算模块             │ │  数据库层    │ │  存储层                           │
 │                          │ │             │ │                                  │
-│  AWS Braket SV1          │ │  DynamoDB   │ │  S3（照片）                       │
-│  ├── 4 量子比特随机数电路 │ │  ├── PK/SK  │ │  ├── 私有，加密                   │
+│  AWS Braket SV1 + DM1     │ │  DynamoDB   │ │  S3（照片）                       │
+│  ├── 双源 QRNG            │ │  ├── PK/SK  │ │  ├── 私有，加密                   │
 │  ├── 2 量子比特 Bell 态   │ │  │   schema │ │  ├── 通过预签名 URL 访问           │
 │  ├── ToyLWE 签名          │ │  ├── 按需    │ │  └── 启用版本控制                 │
 │  └── 本地 crypto          │ │  │   计费    │ │                                  │
@@ -104,31 +105,32 @@ Telegram 照片墙是一个由量子签名认证的实时活动照片墙系统�
         │
         ├── [已有] → 复用现有签名（不调 Braket）
         │
-        └── [新发送者] → 提交到 AWS Braket SV1：
+        └── [新发送者] → 提交到 AWS Braket（SV1 + DM1）：
              │
              ▼
-6. 设备执行（AWS Braket SV1 模拟器）
-   任务 A：量子随机数
-   ├── 电路：4 量子比特（H 门 → CNOT 链 → Ry 种子旋转 → 测量）
-   ├── Shots：100
-   ├── 输出：出现频率最高的比特串 → 整数 mod 1001
+6. 设备执行（AWS Braket 模拟器）
+   双源 QRNG（并发运行）：
+   ├── 源 x：SV1（理想）上的 1 量子比特 Hadamard，约 700 shots → 逐次测量比特流
+   ├── 源 y：DM1（含噪声）上的 1 量子比特 Hadamard，约 700 shots → 逐次测量比特流
    └── 结果写入：s3://amazon-braket-*/braket-results/{taskId}/results.json
 
-   任务 B：Bell 态测量
+   Bell 态测量：
    ├── 电路：2 量子比特（H q[0] → CNOT q[0],q[1] → 测量）
    ├── Shots：200
    └── 输出：概率分布 [P(00), P(01), P(10), P(11)]
         │
         ▼
 7. 结果聚合
-   ├── quantumNumber = parseInt(topBitstring, 2) % 1001
+   ├── Toeplitz 双源提取器：Ext(x, y) → 288 个均匀比特
+   ├── quantumNumber = readUInt32(out[0:4]) % 1001   （真正的 [0, 1000]）
+   ├── r = out[4:36]                                  （32 个量子随机字节）
    ├── bellState = [P(00), P(01), P(10), P(11)]
    ├── ToyLWE 签名：
-   │   ├── 密钥派生：SHAKE-256(seed + quantum_number + random_bytes)
-   │   ├── 公钥哈希：SHA-256 → 取前 12 个十六进制字符（大写）
+   │   ├── 𝒮 = SHAKE-256(username + quantumNumber + r)
+   │   ├── 公钥哈希：SHA-256(𝒮[0:32]) → 取前 12 个十六进制字符（大写）
    │   └── 签名：SHA-256 链 → base64（24 字符）
    ├── 视觉颜色：由量子数与 Bell 态派生的 HSL
-   └── 更新 DynamoDB：signatureStatus = "completed" + 签名相关字段
+   └── 更新 DynamoDB：signatureStatus = "completed" + 全部签名字段（含 quantumNonce）
         │
         ▼
 8. 前端渲染
@@ -340,23 +342,24 @@ quantum:
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `username` | string | 是 | Telegram 发送者显示名（用作电路旋转的种子） |
+| `username` | string | 是 | Telegram 发送者显示名（与量子 nonce 一同签名） |
 | `messageText` | string | 是 | 消息内容；为空时回退到 `msg-{id}` |
-| Circuit type | enum | 内部 | `random`（4 量子比特 RNG）或 `bell`（2 量子比特纠缠） |
-| Shots | number | 内部 | 100（RNG）或 200（Bell） |
-| Backend | string | 配置 | `arn:aws:braket:::device/quantum-simulator/amazon/sv1` |
+| 源电路 | enum | 内部 | 1 量子比特 Hadamard ×2（SV1 理想 + DM1 含噪声）以及 `bell`（2 量子比特纠缠） |
+| Shots | number | 内部 | 每个 QRNG 源约 700，Bell 态 200 |
+| Backend | string | 配置 | `…/amazon/sv1` + `…/amazon/dm1` |
 
 #### 输出
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `quantumNumber` | number（0–1000） | 由 SV1 测量推导出的量子随机数 |
+| `quantumNumber` | number（0–1000） | 由双源提取器导出的量子随机数 |
 | `publicKeyHash` | string（12 hex） | ToyLWE 公钥哈希（如 `"7B284BB3D413"`） |
 | `signature` | string（24 字符 base64） | ToyLWE 签名 |
+| `nonce` | string（64 hex 字符） | 32 个量子随机字节 `r`（保存为 `quantumNonce`，仅供审计） |
 | `bellState` | [number, number, number, number] | Bell 态概率 [P(00), P(01), P(10), P(11)] |
-| `algorithm` | string | `"ToyLWE-Braket-SV1"` 或 `"ToyLWE-local-fallback"` |
+| `algorithm` | string | `"ToyLWE-2Source-Toeplitz"` 或 `"ToyLWE-local-fallback"` |
 | `visualColor` | string | 由量子数据派生的 HSL 颜色（如 `"hsl(207, 85%, 55%)"`） |
-| `device` | string | `"SV1"` 或 `"local-fallback"` |
+| `device` | string | `"SV1+DM1"` 或 `"local-fallback"` |
 
 #### 错误处理
 

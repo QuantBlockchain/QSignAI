@@ -60,23 +60,23 @@ function mentionsBot(message: any, botUsername: string): boolean {
   return fullText.toLowerCase().includes(`@${lower}`);
 }
 
-// Look up existing quantum signature for the same sender posting the same content.
-// Match is on (senderName, normalized text) — same content → same key, different content → new key.
+// Look up the existing quantum identity bundle for a sender in this group.
+// The bundle is now seeded by fresh quantum randomness (a nonce r), so it is no
+// longer reproducible from username/content — it must be generated once per
+// sender and then reused. We therefore match on senderName only, giving each
+// participant a single stable badge per group regardless of message content.
 async function findExistingSignature(
   groupId: string,
-  senderName: string,
-  text: string
-): Promise<{ quantumNumber: number; publicKeyHash: string; signature: string; bellState: string; algorithm: string; visualColor: string } | null> {
+  senderName: string
+): Promise<{ quantumNumber: number; publicKeyHash: string; signature: string; nonce: string; bellState: string; algorithm: string; visualColor: string } | null> {
   const result = await dynamodb.send(
     new QueryCommand({
       TableName: TABLE_NAME,
       KeyConditionExpression: "PK = :pk",
-      FilterExpression: "senderName = :sn AND #txt = :tx AND signatureStatus = :s",
-      ExpressionAttributeNames: { "#txt": "text" },
+      FilterExpression: "senderName = :sn AND signatureStatus = :s",
       ExpressionAttributeValues: {
         ":pk": { S: `GROUP#${groupId}` },
         ":sn": { S: senderName },
-        ":tx": { S: text },
         ":s": { S: "completed" },
       },
       Limit: 1,
@@ -91,6 +91,7 @@ async function findExistingSignature(
     quantumNumber: parseInt(item.quantumNumber.N, 10),
     publicKeyHash: item.publicKeyHash?.S || "",
     signature: item.quantumSignature?.S || "",
+    nonce: item.quantumNonce?.S || "",
     bellState: item.bellState?.S || "[]",
     algorithm: item.signatureAlgorithm?.S || "",
     visualColor: item.visualColor?.S || "",
@@ -235,21 +236,22 @@ export async function POST(
 
     // Phase 2: Quantum signature — reuse existing if same sender already has one
     try {
-      const existing = await findExistingSignature(groupId, senderName, text);
+      const existing = await findExistingSignature(groupId, senderName);
 
       if (existing) {
-        // Reuse existing quantum signature (no Braket call)
+        // Reuse this sender's existing quantum identity bundle (no Braket call).
         console.log(`[webhook] Reusing existing signature for "${senderName}": qn=${existing.quantumNumber}`);
         await dynamodb.send(
           new UpdateItemCommand({
             TableName: TABLE_NAME,
             Key: { PK: { S: pk }, SK: { S: sk } },
-            UpdateExpression: "SET signatureStatus = :s, quantumNumber = :qn, publicKeyHash = :pkh, quantumSignature = :qs, bellState = :bs, signatureAlgorithm = :sa, visualColor = :vc",
+            UpdateExpression: "SET signatureStatus = :s, quantumNumber = :qn, publicKeyHash = :pkh, quantumSignature = :qs, quantumNonce = :nn, bellState = :bs, signatureAlgorithm = :sa, visualColor = :vc",
             ExpressionAttributeValues: {
               ":s": { S: "completed" },
               ":qn": { N: String(existing.quantumNumber) },
               ":pkh": { S: existing.publicKeyHash },
               ":qs": { S: existing.signature },
+              ":nn": { S: existing.nonce },
               ":bs": { S: existing.bellState },
               ":sa": { S: existing.algorithm },
               ":vc": { S: existing.visualColor },
@@ -257,19 +259,20 @@ export async function POST(
           })
         );
       } else {
-        // First message from this sender — call Braket SV1
+        // First message from this sender — run the quantum RNG via Braket.
         console.log(`[webhook] First message from "${senderName}", generating quantum signature via Braket`);
         const sig = await generateQuantumSignature(senderName, text || `msg-${messageId}`);
         await dynamodb.send(
           new UpdateItemCommand({
             TableName: TABLE_NAME,
             Key: { PK: { S: pk }, SK: { S: sk } },
-            UpdateExpression: "SET signatureStatus = :s, quantumNumber = :qn, publicKeyHash = :pkh, quantumSignature = :qs, bellState = :bs, signatureAlgorithm = :sa, visualColor = :vc",
+            UpdateExpression: "SET signatureStatus = :s, quantumNumber = :qn, publicKeyHash = :pkh, quantumSignature = :qs, quantumNonce = :nn, bellState = :bs, signatureAlgorithm = :sa, visualColor = :vc",
             ExpressionAttributeValues: {
               ":s": { S: "completed" },
               ":qn": { N: String(sig.quantumNumber) },
               ":pkh": { S: sig.publicKeyHash },
               ":qs": { S: sig.signature },
+              ":nn": { S: sig.nonce },
               ":bs": { S: JSON.stringify(sig.bellState) },
               ":sa": { S: sig.algorithm },
               ":vc": { S: sig.visualColor },

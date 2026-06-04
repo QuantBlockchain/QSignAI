@@ -12,13 +12,17 @@
 
 对于 Telegram 群组中的每个新发送者，系统会生成一个小而稳定的身份 bundle：
 
-- 一个 **量子随机数**，取值 `[0, 1000]`，由量子测量派生；
+- 一个 **量子随机数**，取值 `[0, 1000]`，由量子测量取熵（见 §1.2）；
+- 一个 **32 字节量子随机 nonce `r`**，作为签名的新鲜熵种子；
 - 一个 **Bell 态概率向量** `[P(00), P(01), P(10), P(11)]`，作为结构性见证；
 - 一个 **ToyLWE 密钥对**，其公钥哈希显示在卡片上；
-- 一个对 `username | messageText | quantumNumber` 的 **签名**；
-- 一个由量子数与 Bell 态概率派生的、确定性的 **HSL 强调色**。
+- 一个 **签名** `𝒮 = SHAKE-256(username ‖ quantumNumber ‖ r)`，以及派生量 `𝒢`（见 §3.1）；
+- 一个由量子数与 Bell 态概率派生的 **HSL 强调色**。
 
-同一 `(groupId, senderId)` 后续的消息复用缓存的 bundle，因此每个用户在每个群组内只对应一个稳定身份。
+该 bundle 由新鲜的量子随机性种子化，因此**无法**从用户名或消息内容复现。
+某 `(groupId, senderId)` 的第一条消息会运行 QRNG，并将 bundle 保存到数据行上；
+后续消息**复用已保存的 bundle**，因此每个用户在每个群组内保持单一稳定的徽章，
+而底层身份本身是真正量子随机的。
 
 ### 1.2 算法选择与理由
 
@@ -26,15 +30,15 @@
 
 | 构件 | 选择 | 理由 |
 |---|---|---|
-| **量子熵** | Amazon Braket SV1 上的 4 量子比特随机数电路（100 shots），结果取 `topBitstring mod 1001` | 小电路适合 SV1 的延迟预算（典型任务 < 5 秒），同时避免 QPU 排队等待。`mod 1001` 给出便于展示的徽章 `Q#000`–`Q#1000`，同时仍从量子测量取熵。 |
-| **量子结构性见证** | SV1 上的 2 量子比特 Bell 态 `\|Φ⁺⟩` 电路（200 shots），输出概率 `[P(00), P(01), P(10), P(11)]` | 理想模拟器应给出 ≈ `[0.5, 0, 0, 0.5]`。把经验向量保存下来既可驱动确定性的 HSL 颜色，也提供了"这条记录确实来自一次量子执行"的直观信号。 |
-| **后量子身份** | 教学用 ToyLWE：SHAKE-256 从 `domain ‖ quantumSeed ‖ 32 字节 OS 随机` 派生密钥材料；SHA-256 链生成签名；公钥摘要前 12 个十六进制字符成为徽章 | LWE 是 NIST PQC 优胜者（Kyber/Dilithium）所基于的同一硬度假设。ToyLWE 是有意做得简单的教学替身，使链上构件的形态（公钥、公钥哈希、签名）与真实 PQC 迁移保持一致，同时保留肉眼可读的体积。 |
+| **量子熵** | 双源 QRNG：单量子比特 Hadamard 电路，分别在 **SV1**（理想源）与 **DM1**（含噪声的弱源）上采样其**逐次测量比特流**，再由 **Toeplitz 双源提取器** 压缩为均匀输出比特 | 遵循 AWS 官方参考实现（`amazon-braket-examples` → `Randomness/Randomness_Generation.ipynb`）。读取每一次 shot——而非取众数比特串——保留了量子随机性，而双源提取器即使在器件噪声下也能给出与均匀分布 ε-接近的输出。输出字节同时供给 `quantumNumber ∈ [0, 1000]` 与 32 字节 nonce `r`。两个电路都在模拟器上运行，因此每次生成成本 < 0.01 美元。 |
+| **量子结构性见证** | SV1 上的 2 量子比特 Bell 态 `\|Φ⁺⟩` 电路（200 shots），输出概率 `[P(00), P(01), P(10), P(11)]` | 理想模拟器应给出 ≈ `[0.5, 0, 0, 0.5]`。把经验向量保存下来既可驱动来自量子数据的 HSL 颜色，也提供了"这条记录确实来自一次量子执行"的直观信号。 |
+| **后量子身份** | 教学用 ToyLWE：`𝒮 = SHAKE-256(username ‖ quantumNumber ‖ r)` 从量子 nonce 派生密钥材料；SHA-256 链生成签名；公钥摘要前 12 个十六进制字符成为徽章 | LWE 是 NIST PQC 优胜者（Kyber/Dilithium）所基于的同一硬度假设。ToyLWE 是有意做得简单的教学替身，使链上构件的形态（公钥、公钥哈希、签名）与真实 PQC 迁移保持一致，同时保留肉眼可读的体积。完整构造规范参见 [`docs/paper/quantum-rng-implementation.md`](../../docs/paper/quantum-rng-implementation.md)。 |
 
 ### 1.3 我们**不**主张什么
 
 - **不是 BB84 / E91 / QKD**。量子密钥分发要求两个具有量子硬件的端点协作，并配合一条公开经典信道。墙面是单端点的活动体验，QKD 不会是合适的原语。
 - **不是标准化 PQC**。ToyLWE 既不是 Kyber、Dilithium，也不是任何 NIST 标准方案，它是一种教学构件。如果要做生产迁移，请把 ToyLWE 替换为 `@aws-crypto/kyber` / `pq-crystals/dilithium` 等等——周围的管线（Braket 熵 + Bell 见证 + 每用户缓存 + ALB 前置的 DynamoDB 行）保持不变。
-- **不是容错型密码分析**。4 量子比特电路是一个随机源，**不是** Shor / Grover 实例。徽章演示的是"活动级别的量子认证身份"，不是量子攻击或量子密钥建立会话。
+- **不是容错型密码分析**。Hadamard 源电路是一个随机源，**不是** Shor / Grover 实例。徽章演示的是"活动级别的量子认证身份"，不是量子攻击或量子密钥建立会话。
 
 ---
 
@@ -46,23 +50,24 @@
 |---|---|
 | 提供方 | Amazon Web Services |
 | 服务 | Amazon Braket |
-| 设备 | **SV1 — 按需态向量模拟器** |
-| 设备 ARN | `arn:aws:braket:::device/quantum-simulator/amazon/sv1` |
-| 最大量子比特 | 34（我们用 4 个做随机数，2 个做 Bell 态） |
+| 设备 | **SV1 — 按需态向量模拟器**（理想源）与 **DM1 — 密度矩阵模拟器**（含噪声的弱源） |
+| 设备 ARN | `arn:aws:braket:::device/quantum-simulator/amazon/sv1`、`arn:aws:braket:::device/quantum-simulator/amazon/dm1` |
+| 使用的量子比特 | 每个随机源 1 个（各采样约 700 shots），Bell 态用 2 个 |
 | 使用区域 | 默认 `us-west-2`；通过 `AWS_REGION_NAME` 可配置 |
 | 结果存储 | `BRAKET_BUCKET` 配置的 S3 桶，前缀 `braket-results/` |
-| 典型延迟 | 端到端 2–5 秒/任务 |
+| 典型延迟 | 端到端 2–5 秒/任务（并发运行） |
 | 是否支持 OpenQASM 3.0 | 是；电路以 `braket.ir.openqasm.program` 形式提交 |
 
-选择 SV1 是因为它无需排队、跨区域可用，且其延迟落在墙面 `GET /api/messages/[groupId]` 5 秒轮询周期之内。真正的 QPU 执行考虑排队后通常需要 5–60 分钟，会迫使墙面进入"待签名"异步流程，但对演示叙事并无实质性增加。
+选择 SV1 与 DM1 是因为它们无需排队、跨区域可用，且其延迟落在墙面 `GET /api/messages/[groupId]` 5 秒轮询周期之内。使用两个**相互独立**的模拟器源——一个理想、一个含噪声——正是 Toeplitz 双源提取器有意义的前提：它把两个弱源压缩为可证明即使在噪声下也接近均匀的输出。真正的 QPU 执行考虑排队后通常需要 5–60 分钟，会迫使墙面进入"待签名"异步流程，但对演示叙事并无实质性增加。
 
 ### 2.2 回退路径
 
-当 Braket 不可用时，代码会回退到一条确定性的本地管线，确保墙面永远不会阻塞发送者：
+当 Braket 不可用时，代码会回退到一条本地管线，确保墙面永远不会阻塞发送者。该回退使用操作系统 CSPRNG（`crypto.randomBytes`）——它是**新鲜且非确定性的**，但**不是**量子测量，也**不**从消息内容派生：
 
 | 阶段 | 回退行为 |
 |---|---|
-| 量子随机数 | `shake256(\"quantum:\" + username + \":\" + Date.now()).readUInt16BE(0) mod 1001` |
+| 量子随机数 | `crypto.randomBytes(4).readUInt32BE(0) mod 1001` |
+| Nonce `r` | `crypto.randomBytes(32)` |
 | Bell 态 | 静态 `[0.5, 0, 0, 0.5]`（无噪声理想值） |
 | 算法标记 | `algorithm: \"ToyLWE-local-fallback\"` |
 | 设备标记 | `device: \"local-fallback\"` |
@@ -80,7 +85,7 @@
 | 中性原子 | QuEra Aquila（256 比特，us-east-1） | 可编程拓扑、AHS 范式；不能直接替代基于门的 RNG 电路，但适合做主题性的 reservoir 风格输出 |
 | 托管模拟器 | DM1（密度矩阵）、TN1（张量网络） | 前者用于建模噪声，后者用于更宽电路的教学变体 |
 
-如果要切换到真实 QPU，需要放宽 `runOnSV1` 中 30 秒的轮询窗口，并把 `signatureStatus = "queued"` 状态传到 UI。
+如果要切换到真实 QPU，需要放宽 `submitAndFetch` 中 30 秒的轮询窗口，并把 `signatureStatus = "queued"` 状态传到 UI。
 
 ---
 
@@ -93,10 +98,11 @@ export interface QuantumSignature {
   quantumNumber: number;          // 0..1000
   publicKeyHash: string;          // 12 个大写十六进制字符
   signature: string;              // 24 个 base64 字符
+  nonce: string;                  // 32 字节量子随机数 r 的十六进制
   bellState: [number, number, number, number]; // [P(00), P(01), P(10), P(11)]
-  algorithm: string;              // "ToyLWE-Braket-SV1" | "ToyLWE-local-fallback"
+  algorithm: string;              // "ToyLWE-2Source-Toeplitz" | "ToyLWE-local-fallback"
   visualColor: string;            // "hsl(h, s%, l%)"
-  device: string;                 // "SV1" | "local-fallback"
+  device: string;                 // "SV1+DM1" | "local-fallback"
 }
 ```
 
@@ -104,12 +110,12 @@ export interface QuantumSignature {
 
 | 阶段 | 产物 | 在数据行中的字段 |
 |---|---|---|
-| **原始量子随机比特** | 4 量子比特 RNG 电路 100 shots 中出现频率最高的比特串 | 不原样保存；坍缩为 `quantumNumber = int(topBitstring, 2) mod 1001` |
-| **容错聚合** | 取众数比特串等价于一种简化的多数投票纠错；与 `mod 1001` 一起吸收模拟器的单 shot 噪声 | `quantumNumber` |
-| **隐私放大** | `xof = SHAKE-256(\"ToyLWE-KeyGen-v1\" ‖ quantumSeed ‖ os.urandom(32), 64)` 把量子熵与 32 字节 OS 随机混合，打破任务级关联 | 不保存；混入 `publicKeyHash` 与 `signature` |
-| **最终密钥材料（公开）** | `publicKeyHash = SHA-256(xof[0:32])[0:12]`（大写十六进制）；`signature = base64(SHA-256(msgHash ‖ entropyHash ‖ pkHash))[0:24]` | `publicKeyHash`、`signature` |
+| **原始量子随机比特（双源）** | 来自单量子比特 Hadamard 电路各约 700 shots 的逐次测量比特流 `x`（SV1，理想）与 `y`（DM1，含噪声） | 不原样保存 |
+| **双源随机性提取** | Toeplitz 提取器 `Ext(x, y) = x·(T(y)\|I_m)ᵀ mod 2` 把两个弱源压缩为 `m = 288` 个比特，即使在器件噪声下也与均匀分布 ε-接近（ε = 1e-8） | 不保存；供下方使用 |
+| **量子随机数 + nonce** | `quantumNumber = readUInt32(out[0:4]) mod 1001`；`r = out[4:36]`（32 个新鲜的量子随机字节） | `quantumNumber`、`quantumNonce` |
+| **最终密钥材料（公开）** | `𝒮 = SHAKE-256(username ‖ quantumNumber ‖ r, 64)`；`publicKeyHash = SHA-256(𝒮[0:32])[0:12]`（大写十六进制）；`signature = base64(SHA-256(H_msg : H_ent : pkHash))[0:24]`，其中 `H_msg = SHA-256(message)`、`H_ent = SHA-256(quantumNumber)` | `publicKeyHash`、`quantumSignature` |
 | **结构性见证** | 2 量子比特 `\|Φ⁺⟩` 电路（200 shots）的经验 Bell 态概率 | `bellState` |
-| **审计元数据** | 标记本行由 SV1 还是回退路径产生 | `algorithm`、`device`，以及 DynamoDB 的 `signatureStatus` |
+| **审计元数据** | 标记本行由 SV1+DM1 QRNG 还是回退路径产生 | `signatureAlgorithm`、`device`，以及 DynamoDB 的 `signatureStatus` |
 | **呈现派生** | `hue = (quantumNumber × 137.5) mod 360`；`sat = 70 + bellState[0] × 30`；`light = 45 + bellState[3] × 20` | `visualColor` |
 
 ### 3.2 卡片实际显示什么
@@ -146,4 +152,4 @@ Q#{quantumNumber} | {publicKeyHash}        例如  Q#452 | 7B284BB3D413
 - ToyLWE 仅用于演示，**不要**用它保护真实资产。
 - SV1 是模拟器；本演示中真正的"量子"在熵源与结构性见证。
 - 回退路径有密码学种子，但**不是**量子测量；对外沟通溯源时请以 `device` 与 `algorithm` 字段为准。
-- `runOnSV1` 中 30 秒的轮询窗口是为 SV1 调优的；切换到真实 QPU 时需要扩大该窗口，并把 `queued` 状态传到 UI。
+- `submitAndFetch` 中 30 秒的轮询窗口是为 SV1 调优的；切换到真实 QPU 时需要扩大该窗口，并把 `queued` 状态传到 UI。

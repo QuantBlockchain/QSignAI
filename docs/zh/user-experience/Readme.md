@@ -16,7 +16,7 @@ Telegram 照片墙是一个**活动级别的交互式体验**，演示如何把�
 
 整体部署融合了三股趋势：
 
-- **云上量子计算** — 在活动的延迟预算内于 Amazon Braket SV1 上运行小规模电路（4 量子比特随机数、2 量子比特 Bell 态），
+- **云上量子计算** — 在活动的延迟预算内于 Amazon Braket SV1 + DM1 上运行小规模电路（双源 Hadamard 随机数、2 量子比特 Bell 态），
 - **后量子身份原语** — 由量子熵派生的、每用户一次的格密码风格 ToyLWE 公钥/签名对，并以稳定的 `Q#number | publicKeyHash` 徽章形式呈现，
 - **公众参与的分布式系统** — 使用 `@bot` mention 作为唯一入口，等价于一个低门槛的、治理风格的同意环节。
 
@@ -137,10 +137,10 @@ Telegram 照片墙是一个**活动级别的交互式体验**，演示如何把�
 
 **量子签名管线（针对每个新发送者）**
 
-- **任务 A — 4 量子比特 RNG 电路** 在 Braket SV1 上（100 shots）：H 门 → CNOT 链 → 由用户名种子驱动的 `Ry` 旋转 → 测量；最高频比特串变成 `quantumNumber = int(top_bits, 2) mod 1001`
-- **任务 B — 2 量子比特 Bell 态** `|Φ⁺⟩` 在 Braket SV1 上（200 shots）：q[0] 上的 H → CNOT(q[0],q[1]) → 测量；得到 `bellState = [P(00), P(01), P(10), P(11)]`
-- **ToyLWE 包装**：SHAKE-256(seed ‖ quantumNumber ‖ random) 派生密钥对；SHA-256 链生成 24 字符 base64 签名；公钥哈希前 12 个十六进制字符成为徽章标识
-- 同一 `(groupId, senderId)` 后续消息复用缓存的签名，**不再调用 Braket**
+- **双源 QRNG** 在 Braket 上：单量子比特 Hadamard 电路，分别在 SV1（理想）与 DM1（含噪声）上采样其逐次测量比特流，再由 Toeplitz 双源提取器压缩为均匀比特 → `quantumNumber ∈ [0, 1000]` 以及一个 32 字节量子 nonce `r`
+- **Bell 态** `|Φ⁺⟩` 在 Braket SV1 上（200 shots）：q[0] 上的 H → CNOT(q[0],q[1]) → 测量；得到 `bellState = [P(00), P(01), P(10), P(11)]`
+- **ToyLWE 包装**：`SHAKE-256(username ‖ quantumNumber ‖ r)` 派生密钥对；SHA-256 链生成 24 字符 base64 签名；公钥哈希前 12 个十六进制字符成为徽章标识
+- 同一 `(groupId, senderId)` 后续消息复用已保存的 bundle，**不再调用 Braket**
 
 **用户操作**
 
@@ -172,7 +172,7 @@ Telegram 照片墙是一个**活动级别的交互式体验**，演示如何把�
 - **消息表** 展示发送者、文本、类型（text/photo）、时间戳与 `signatureStatus`（`generating` / `completed` / `fallback`）
 - **软删除**：`DELETE /api/messages/[groupId]?sk=...` 仅在 DynamoDB 上翻转 `hidden` 标志，行本身不删，因此审计与量子签名得以保留
 - **批量清理**：`DELETE /api/admin?action=clear&groupId=X` 一键软删除某群组所有消息——适合在不同会场之间使用
-- **溯源视图**：每行可查看 `quantumNumber`、`publicKeyHash`、`bellState`、`algorithm`（`ToyLWE-Braket-SV1` 或 `ToyLWE-local-fallback`）、`device`（`SV1` 或 `local-fallback`）
+- **溯源视图**：每行可查看 `quantumNumber`、`publicKeyHash`、`bellState`、`algorithm`（`ToyLWE-2Source-Toeplitz` 或 `ToyLWE-local-fallback`）、`device`（`SV1+DM1` 或 `local-fallback`）
 - 所有管理员端点都必须经由 CloudFront → ALB 通道（带 secret header 校验），不存在直连 ALB 的访问路径
 
 **管理员操作**
@@ -232,7 +232,7 @@ Telegram 照片墙是一个**活动级别的交互式体验**，演示如何把�
 | Amazon Braket | AWS 提供的托管量子模拟器与 QPU 服务。 |
 | SV1 | Braket 的全态向量模拟器，本应用所有电路均在其上运行。 |
 | Bell 态 | 一种最大纠缠两量子比特态；其测量分布在徽章中提供结构性见证。 |
-| 量子随机数 | 4 量子比特 RNG 电路最高频比特串派生出的整数。 |
+| 量子随机数 | 由 SV1 + DM1 的 Hadamard 比特流经 Toeplitz 双源提取器得到的整数，取值 [0, 1000]。 |
 | ToyLWE | 演示用的格密码风格密钥派生与签名包装，用于生成每用户的徽章。 |
 | 公钥哈希 | ToyLWE 公钥的 SHA-256 摘要前 12 个十六进制字符。 |
 | 签名状态 | DynamoDB 中标记某行处于 `generating`、`completed` 或 `fallback` 之一。 |

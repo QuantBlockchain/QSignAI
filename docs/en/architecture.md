@@ -51,8 +51,8 @@ Telegram Photo Wall is a real-time event photo wall powered by quantum-authentic
 │  QUANTUM PROCESSING      │ │  DATABASE   │ │  STORAGE                         │
 │  MODULE                  │ │  LAYER      │ │  LAYER                           │
 │                          │ │             │ │                                  │
-│  AWS Braket SV1          │ │  DynamoDB   │ │  S3 (photos)                     │
-│  ├── 4-qubit RNG circuit │ │  ├── PK/SK  │ │  ├── Private, encrypted          │
+│  AWS Braket SV1 + DM1    │ │  DynamoDB   │ │  S3 (photos)                     │
+│  ├── 2-source QRNG       │ │  ├── PK/SK  │ │  ├── Private, encrypted          │
 │  ├── 2-qubit Bell state  │ │  │  schema  │ │  ├── Pre-signed URL access       │
 │  ├── ToyLWE signature    │ │  ├── PAY_PER│ │  └── Versioned                   │
 │  └── Local crypto        │ │  │  _REQUEST│ │                                  │
@@ -105,31 +105,32 @@ Telegram Photo Wall is a real-time event photo wall powered by quantum-authentic
         │
         ├── [EXISTS] → Reuse existing signature (no Braket call)
         │
-        └── [NEW SENDER] → Submit to AWS Braket SV1:
+        └── [NEW SENDER] → Submit to AWS Braket (SV1 + DM1):
              │
              ▼
-6. DEVICE EXECUTION (AWS Braket SV1 Simulator)
-   Task A: Quantum Random Number
-   ├── Circuit: 4-qubit (H gates → CNOT chain → Ry seed rotations → Measure)
-   ├── Shots: 100
-   ├── Output: Most frequent bitstring → integer mod 1001
+6. DEVICE EXECUTION (AWS Braket Simulators)
+   Two-source QRNG (run concurrently):
+   ├── Source x: 1-qubit Hadamard on SV1 (ideal), ~700 shots → per-shot bit stream
+   ├── Source y: 1-qubit Hadamard on DM1 (noisy), ~700 shots → per-shot bit stream
    └── Results written to: s3://amazon-braket-*/braket-results/{taskId}/results.json
-   
-   Task B: Bell State Measurement
+
+   Bell State Measurement:
    ├── Circuit: 2-qubit (H q[0] → CNOT q[0],q[1] → Measure)
    ├── Shots: 200
    └── Output: Probability distribution [P(00), P(01), P(10), P(11)]
         │
         ▼
 7. RESULT AGGREGATION
-   ├── quantumNumber = parseInt(topBitstring, 2) % 1001
+   ├── Toeplitz two-source extractor: Ext(x, y) → 288 uniform bits
+   ├── quantumNumber = readUInt32(out[0:4]) % 1001   (genuine [0, 1000])
+   ├── r = out[4:36]                                  (32 quantum-random bytes)
    ├── bellState = [P(00), P(01), P(10), P(11)]
    ├── ToyLWE Signature:
-   │   ├── Key derivation: SHAKE-256(seed + quantum_number + random_bytes)
-   │   ├── Public key hash: SHA-256 → first 12 hex chars (uppercase)
+   │   ├── 𝒮 = SHAKE-256(username + quantumNumber + r)
+   │   ├── Public key hash: SHA-256(𝒮[0:32]) → first 12 hex chars (uppercase)
    │   └── Signature: SHA-256 chain → base64 (24 chars)
    ├── Visual color: HSL derived from quantum number + Bell state
-   └── Update DynamoDB: signatureStatus = "completed" + all signature fields
+   └── Update DynamoDB: signatureStatus = "completed" + all signature fields (incl. quantumNonce)
         │
         ▼
 8. FRONTEND RENDERING
@@ -341,23 +342,24 @@ quantum:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `username` | string | Yes | Telegram sender display name (seed for circuit rotations) |
+| `username` | string | Yes | Telegram sender display name (signed alongside the quantum nonce) |
 | `messageText` | string | Yes | Message content or fallback `msg-{id}` |
-| Circuit type | enum | Internal | `random` (4-qubit RNG) or `bell` (2-qubit entanglement) |
-| Shots | number | Internal | 100 (RNG) or 200 (Bell) |
-| Backend | string | Config | `arn:aws:braket:::device/quantum-simulator/amazon/sv1` |
+| Source circuits | enum | Internal | 1-qubit Hadamard ×2 (SV1 ideal + DM1 noisy) and `bell` (2-qubit entanglement) |
+| Shots | number | Internal | ~700 per QRNG source, 200 (Bell) |
+| Backend | string | Config | `…/amazon/sv1` + `…/amazon/dm1` |
 
 #### Outputs
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `quantumNumber` | number (0-1000) | Quantum random number from SV1 measurement |
+| `quantumNumber` | number (0-1000) | Quantum random number from the two-source extractor |
 | `publicKeyHash` | string (12 hex chars) | ToyLWE public key hash (e.g., `"7B284BB3D413"`) |
 | `signature` | string (24 chars, base64) | ToyLWE signature |
+| `nonce` | string (64 hex chars) | The 32 quantum-random bytes `r` (persisted as `quantumNonce`, audit-only) |
 | `bellState` | [number, number, number, number] | Bell state probabilities [P(00), P(01), P(10), P(11)] |
-| `algorithm` | string | `"ToyLWE-Braket-SV1"` or `"ToyLWE-local-fallback"` |
+| `algorithm` | string | `"ToyLWE-2Source-Toeplitz"` or `"ToyLWE-local-fallback"` |
 | `visualColor` | string | HSL color derived from quantum data (e.g., `"hsl(207, 85%, 55%)"`) |
-| `device` | string | `"SV1"` or `"local-fallback"` |
+| `device` | string | `"SV1+DM1"` or `"local-fallback"` |
 
 #### Error Handling
 

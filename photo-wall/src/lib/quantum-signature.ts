@@ -10,54 +10,63 @@ const region = process.env.AWS_REGION_NAME || process.env.AWS_REGION || "us-west
 const braket = new BraketClient({ region });
 const s3 = new S3Client({ region });
 
+// Two independent simulator sources for the two-source QRNG (see
+// docs/paper/quantum-rng-implementation.md). SV1 is the ideal state-vector
+// simulator; DM1 is the density-matrix simulator carrying injected noise, used
+// as the "weak" second source the Toeplitz extractor is designed to condense.
 const SV1_ARN = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+const DM1_ARN = "arn:aws:braket:::device/quantum-simulator/amazon/dm1";
 const OUTPUT_BUCKET = process.env.BRAKET_BUCKET || "";
 const OUTPUT_PREFIX = "braket-results";
+
+// Two-source extractor parameters (notebook: Randomness_Generation.ipynb).
+const EPS = 1e-8;            // security parameter
+const K_RATE = 0.72;        // conservative per-source min-entropy rate
+const OUTPUT_BYTES = 36;     // 4 bytes -> quantumNumber, 32 bytes -> nonce r
+const OUTPUT_BITS = OUTPUT_BYTES * 8; // m = 288
 
 export interface QuantumSignature {
   quantumNumber: number;
   publicKeyHash: string;
   signature: string;
+  nonce: string; // hex of the 32 fresh random bytes r
   bellState: [number, number, number, number];
   algorithm: string;
   visualColor: string;
   device: string;
 }
 
-// Build OpenQASM 3.0 circuit for quantum random number generation
-function buildRandomCircuit(seedText: string, numQubits: number = 4): string {
-  const lines: string[] = [
+// ---------------------------------------------------------------------------
+// Circuits
+// ---------------------------------------------------------------------------
+
+// Single-qubit Hadamard source: one quantum-random bit per shot (notebook cell-7).
+function buildHadamardCircuit(): string {
+  return [
     "OPENQASM 3.0;",
-    `qubit[${numQubits}] q;`,
-    `bit[${numQubits}] c;`,
-    "",
-    "// Superposition",
-  ];
-
-  for (let i = 0; i < numQubits; i++) {
-    lines.push(`h q[${i}];`);
-  }
-
-  lines.push("", "// Entanglement");
-  for (let i = 0; i < numQubits - 1; i++) {
-    lines.push(`cnot q[${i}], q[${i + 1}];`);
-  }
-
-  lines.push("", "// Seed-based rotations");
-  for (let i = 0; i < Math.min(seedText.length, numQubits); i++) {
-    const angle = ((seedText.charCodeAt(i) % 128) / 128.0) * Math.PI;
-    lines.push(`ry(${angle.toFixed(6)}) q[${i}];`);
-  }
-
-  lines.push("", "// Measurement");
-  for (let i = 0; i < numQubits; i++) {
-    lines.push(`c[${i}] = measure q[${i}];`);
-  }
-
-  return lines.join("\n");
+    "qubit[1] q;",
+    "bit[1] c;",
+    "h q[0];",
+    "c[0] = measure q[0];",
+  ].join("\n");
 }
 
-// Build OpenQASM 3.0 Bell state circuit
+// Same Hadamard source, but on DM1 with injected noise so it acts as a genuine
+// *weak* randomness source (depolarizing channel + amplitude damping toward
+// |0>, modelling readout-ground bias). The extractor is built to tolerate this.
+function buildNoisyHadamardCircuit(): string {
+  return [
+    "OPENQASM 3.0;",
+    "qubit[1] q;",
+    "bit[1] c;",
+    "h q[0];",
+    "#pragma braket noise depolarizing(0.02) q[0]",
+    "#pragma braket noise amplitude_damping(0.04) q[0]",
+    "c[0] = measure q[0];",
+  ].join("\n");
+}
+
+// 2-qubit Bell state |Φ+> = (|00> + |11>)/sqrt(2) — structural witness, unchanged.
 function buildBellCircuit(): string {
   return [
     "OPENQASM 3.0;",
@@ -70,22 +79,25 @@ function buildBellCircuit(): string {
   ].join("\n");
 }
 
-// Submit circuit to SV1 and wait for results
-async function runOnSV1(
+// ---------------------------------------------------------------------------
+// Braket execution
+// ---------------------------------------------------------------------------
+
+// Submit an OpenQASM circuit to a device, wait for completion, and return the
+// parsed results JSON from S3.
+async function submitAndFetch(
+  deviceArn: string,
   openQasm: string,
   shots: number
-): Promise<Record<string, number>> {
+): Promise<any> {
   const action = JSON.stringify({
-    braketSchemaHeader: {
-      name: "braket.ir.openqasm.program",
-      version: "1",
-    },
+    braketSchemaHeader: { name: "braket.ir.openqasm.program", version: "1" },
     source: openQasm,
   });
 
   const taskRes = await braket.send(
     new CreateQuantumTaskCommand({
-      deviceArn: SV1_ARN,
+      deviceArn,
       action,
       shots,
       outputS3Bucket: OUTPUT_BUCKET,
@@ -94,9 +106,8 @@ async function runOnSV1(
   );
 
   const taskArn = taskRes.quantumTaskArn!;
-  console.log(`[braket] Task created: ${taskArn}`);
+  console.log(`[braket] Task created on ${deviceArn.split("/").pop()}: ${taskArn}`);
 
-  // Poll for completion — SV1 typically finishes in 2-5 seconds
   let status = "";
   let outputDir = "";
   for (let i = 0; i < 30; i++) {
@@ -118,9 +129,6 @@ async function runOnSV1(
     throw new Error(`Braket task timed out after 30s, status: ${status}`);
   }
 
-  // Read results from S3
-  // outputDir is just the key prefix (e.g. "braket-results/task-id"), not s3:// URL
-  // outputBucket comes from GetQuantumTask response
   const check = await braket.send(
     new GetQuantumTaskCommand({ quantumTaskArn: taskArn })
   );
@@ -129,79 +137,160 @@ async function runOnSV1(
 
   const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   const body = await obj.Body!.transformToString();
-  const results = JSON.parse(body);
+  return JSON.parse(body);
+}
 
-  // Extract measurement counts
+// Run a single-qubit source circuit and return the raw per-shot bit stream.
+async function runForBits(
+  deviceArn: string,
+  openQasm: string,
+  shots: number
+): Promise<number[]> {
+  const results = await submitAndFetch(deviceArn, openQasm, shots);
+  // Raw per-shot measurements: array of per-shot bit arrays (one bit each here).
+  if (Array.isArray(results.measurements) && results.measurements.length > 0) {
+    return results.measurements.map((m: number[]) => Number(m[0]) & 1);
+  }
+  throw new Error("No raw per-shot measurements returned (cannot harvest quantum bits)");
+}
+
+// Run the Bell circuit and return measurement counts.
+async function runForCounts(
+  deviceArn: string,
+  openQasm: string,
+  shots: number
+): Promise<Record<string, number>> {
+  const results = await submitAndFetch(deviceArn, openQasm, shots);
   const counts: Record<string, number> = {};
   if (results.measurementProbabilities) {
-    // SV1 returns probabilities, convert to counts
     for (const [state, prob] of Object.entries(results.measurementProbabilities)) {
       counts[state] = Math.round((prob as number) * shots);
     }
-  } else if (results.measurements) {
-    // Some devices return raw measurements
+  } else if (Array.isArray(results.measurements)) {
     for (const m of results.measurements) {
-      const key = m.join("");
-      counts[key] = (counts[key] || 0) + 1;
+      const k = m.join("");
+      counts[k] = (counts[k] || 0) + 1;
     }
   }
-
-  console.log(`[braket] Results: ${JSON.stringify(counts)}`);
   return counts;
 }
 
-// ToyLWE crypto helpers
+// ---------------------------------------------------------------------------
+// Toeplitz two-source extractor (notebook cell-11), direct O(m·(n-m)) mod-2.
+// Ext(x, y) = x · (T(y) | I_m)^T  (mod 2), with x ∈ {0,1}^n, y ∈ {0,1}^{n-1}.
+// ---------------------------------------------------------------------------
+
+// Required raw input length per source for `m` output bits at security `eps`.
+export function requiredInputLength(m: number, eps: number, k: number): number {
+  return Math.floor((m - 1 - 2 * Math.log2(eps)) / (k + k - 1));
+}
+
+export function toeplitzExtract(x: number[], y: number[], m: number): number[] {
+  const n = x.length;
+  if (y.length < n - 1) throw new Error(`y too short: need ${n - 1}, got ${y.length}`);
+  if (n < 2 * m) throw new Error(`n (${n}) must be >= 2m (${2 * m}) for this construction`);
+
+  // y is indexed d ∈ [-(m-1), n-m-1]; store as Y[k] with k = d + (m-1).
+  const out: number[] = new Array(m).fill(0);
+  const cols = n - m; // number of Toeplitz columns
+  for (let i = 0; i < m; i++) {
+    let acc = 0;
+    for (let j = 0; j < cols; j++) {
+      const k = j - i + (m - 1); // index into y
+      acc ^= (x[j] & y[k]);
+    }
+    // Identity block: i-th column selects x[(n-m)+i].
+    acc ^= x[cols + i];
+    out[i] = acc & 1;
+  }
+  return out;
+}
+
+// Pack a bit array (MSB-first) into a Buffer of ceil(bits/8) bytes.
+function bitsToBuffer(bits: number[]): Buffer {
+  const buf = Buffer.alloc(Math.ceil(bits.length / 8));
+  for (let i = 0; i < bits.length; i++) {
+    if (bits[i] & 1) buf[i >> 3] |= 0x80 >> (i & 7);
+  }
+  return buf;
+}
+
+// ---------------------------------------------------------------------------
+// ToyLWE signature (educational PQC stand-in) seeded by the quantum nonce r.
+// ---------------------------------------------------------------------------
+
 function shake256(data: Buffer, length: number): Buffer {
   return crypto.createHash("shake256", { outputLength: length }).update(data).digest();
 }
 
-function toyLweSign(username: string, message: string, quantumSeed: number): { publicKeyHash: string; signature: string } {
-  // Deterministic: same (username, message, quantumSeed) → same key + signature.
-  // Public key derived from username + message so identical content → identical pkHash.
-  const mix = Buffer.concat([
-    Buffer.from("ToyLWE-KeyGen-v1"),
-    Buffer.from(`${username}|${message}|${quantumSeed}`),
-  ]);
-  const xof = shake256(mix, 64);
+// 𝒮 = SHAKE-256(username ‖ quantumNumber ‖ r); pkHash = SHA-256(𝒮[0:32])[0:12];
+// 𝒢 = base64(SHA-256(H_msg : H_ent : pkHash))[0:24].
+function toyLweSign(
+  username: string,
+  message: string,
+  quantumNumber: number,
+  r: Buffer
+): { publicKeyHash: string; signature: string } {
+  const sigMaterial = shake256(
+    Buffer.concat([
+      Buffer.from(username, "utf8"),
+      Buffer.from("|", "utf8"),
+      Buffer.from(String(quantumNumber), "utf8"),
+      Buffer.from("|", "utf8"),
+      r,
+    ]),
+    64
+  );
 
   const pkHash = crypto
     .createHash("sha256")
-    .update(xof.subarray(0, 32))
+    .update(sigMaterial.subarray(0, 32))
     .digest("hex")
     .substring(0, 12)
     .toUpperCase();
 
-  const msgHash = crypto.createHash("sha256").update(`${username}|${message}|${quantumSeed}`).digest("hex");
-  const entropyHash = crypto.createHash("sha256").update(String(quantumSeed)).digest("hex");
-  const sigHash = crypto.createHash("sha256").update(`${msgHash}:${entropyHash}:${pkHash}`).digest("hex");
+  const msgHash = crypto.createHash("sha256").update(message).digest("hex");
+  const entropyHash = crypto.createHash("sha256").update(String(quantumNumber)).digest("hex");
+  const sigHash = crypto
+    .createHash("sha256")
+    .update(`${msgHash}:${entropyHash}:${pkHash}`)
+    .digest("hex");
   const signature = Buffer.from(sigHash).toString("base64").substring(0, 24);
 
   return { publicKeyHash: pkHash, signature };
 }
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 export async function generateQuantumSignature(
   username: string,
   messageText: string
 ): Promise<QuantumSignature> {
   let quantumNumber: number;
+  let r: Buffer;
   let bellState: [number, number, number, number];
-  let device = "SV1";
+  let device = "SV1+DM1";
+  let algorithm = "ToyLWE-2Source-Toeplitz";
 
   try {
-    // Task 1: Quantum random number from SV1
-    const rndCircuit = buildRandomCircuit(username + messageText, 4);
-    const rndCounts = await runOnSV1(rndCircuit, 100);
+    // Two-source QRNG: harvest per-shot bit streams from two independent
+    // simulators, then condense with the Toeplitz two-source extractor.
+    const n = requiredInputLength(OUTPUT_BITS, EPS, K_RATE);
 
-    // Aggregate: most common bitstring → integer, then mod 1001
-    const sorted = Object.entries(rndCounts).sort((a, b) => b[1] - a[1]);
-    const topBits = sorted[0][0];
-    quantumNumber = parseInt(topBits, 2) % 1001;
+    const [sourceA, sourceB, bellCounts] = await Promise.all([
+      runForBits(SV1_ARN, buildHadamardCircuit(), n),       // ideal source x
+      runForBits(DM1_ARN, buildNoisyHadamardCircuit(), n),  // weak/noisy source y
+      runForCounts(SV1_ARN, buildBellCircuit(), 200),       // structural witness
+    ]);
 
-    // Task 2: Bell state from SV1
-    const bellCircuit = buildBellCircuit();
-    const bellCounts = await runOnSV1(bellCircuit, 200);
+    const outBits = toeplitzExtract(sourceA, sourceB, OUTPUT_BITS);
+    const Q = bitsToBuffer(outBits); // 36 bytes
+    quantumNumber = Q.readUInt32BE(0) % 1001;
+    r = Buffer.from(Q.subarray(4, 36)); // 32 fresh quantum-random bytes
 
-    const totalShots = Object.values(bellCounts).reduce((a, b) => a + b, 0);
+    const totalShots = Object.values(bellCounts).reduce((a, b) => a + b, 0) || 1;
     bellState = [
       (bellCounts["00"] || 0) / totalShots,
       (bellCounts["01"] || 0) / totalShots,
@@ -209,21 +298,24 @@ export async function generateQuantumSignature(
       (bellCounts["11"] || 0) / totalShots,
     ];
 
-    console.log(`[braket] Quantum number: ${quantumNumber}, Bell state: ${JSON.stringify(bellState)}`);
+    console.log(
+      `[braket] Two-source QRNG: n=${n}/source, quantumNumber=${quantumNumber}, bell=${JSON.stringify(bellState)}`
+    );
   } catch (err) {
-    console.error("[braket] SV1 failed, falling back to local crypto:", err);
+    console.error("[braket] QRNG failed, falling back to local CSPRNG:", err);
     device = "local-fallback";
+    algorithm = "ToyLWE-local-fallback";
 
-    // Fallback: crypto-based, deterministic on (username, message)
-    const seed = shake256(Buffer.from(`quantum:${username}:${messageText}`), 4);
-    quantumNumber = seed.readUInt16BE(0) % 1001;
+    // Honest fallback: fresh OS-random entropy (NOT quantum, and NOT derived
+    // from message content). Tagged so the admin dashboard can distinguish it.
+    quantumNumber = crypto.randomBytes(4).readUInt32BE(0) % 1001;
+    r = crypto.randomBytes(32);
     bellState = [0.5, 0.0, 0.0, 0.5];
   }
 
-  // ToyLWE signature using quantum seed
-  const { publicKeyHash, signature } = toyLweSign(username, messageText, quantumNumber);
+  const { publicKeyHash, signature } = toyLweSign(username, messageText, quantumNumber, r);
 
-  // Visual color from quantum number
+  // Visual color from quantum number + Bell-state probabilities.
   const hue = (quantumNumber * 137.5) % 360;
   const sat = 70 + bellState[0] * 30;
   const light = 45 + bellState[3] * 20;
@@ -233,8 +325,9 @@ export async function generateQuantumSignature(
     quantumNumber,
     publicKeyHash,
     signature,
+    nonce: r.toString("hex"),
     bellState,
-    algorithm: "ToyLWE-Braket-SV1",
+    algorithm,
     visualColor,
     device,
   };

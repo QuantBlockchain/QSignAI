@@ -10,15 +10,20 @@ The implementation lives at [`photo-wall/src/lib/quantum-signature.ts`](../../ph
 
 ### 1.1 What we generate
 
-For every new sender in a Telegram group we produce a small, stable identity bundle:
+For every new sender in a Telegram group we produce a small identity bundle:
 
-- a **quantum random number** in `[0, 1000]`, derived from a quantum measurement,
+- a **quantum random number** in `[0, 1000]`, harvested from quantum measurements (see §1.2),
+- a **32-byte quantum random nonce `r`**, the fresh entropy that seeds the signature,
 - a **Bell-state probability vector** `[P(00), P(01), P(10), P(11)]`, used as a structural witness,
 - a **ToyLWE keypair**, where the public key hash is shown on the card,
-- a **signature** over `username | messageText | quantumNumber`,
-- a deterministic **HSL accent color** derived from the quantum number and Bell-state probabilities.
+- a **signature** `𝒮 = SHAKE-256(username ‖ quantumNumber ‖ r)` and a derived `𝒢` (see §3.1),
+- an **HSL accent color** derived from the quantum number and Bell-state probabilities.
 
-Subsequent messages from the same `(groupId, senderId)` reuse the cached bundle, so each user has a single stable identity per group.
+The bundle is seeded by fresh quantum randomness, so it is **not** reproducible from the
+username or message content. The first message from a `(groupId, senderId)` runs the QRNG
+and the bundle is stored on the row; subsequent messages **reuse the stored bundle**, so
+each user keeps a single stable badge per group while the underlying identity is genuinely
+quantum-random.
 
 ### 1.2 Algorithm choices and rationale
 
@@ -26,15 +31,15 @@ The pipeline is composed of three building blocks. Each is chosen for a specific
 
 | Building block | Choice | Rationale |
 |---|---|---|
-| **Quantum entropy** | 4-qubit random-number circuit on Amazon Braket SV1 (100 shots), result mapped to `topBitstring mod 1001` | A small circuit fits SV1's latency budget (typical task < 5 s) and avoids QPU queue waits. Mod 1001 gives a presentation-friendly badge `Q#000`–`Q#1000` while still drawing entropy from quantum measurement. |
-| **Quantum structural witness** | 2-qubit Bell-state `\|Φ⁺⟩` circuit on SV1 (200 shots), probabilities `[P(00), P(01), P(10), P(11)]` | A perfect simulator should yield ≈ `[0.5, 0, 0, 0.5]`. Storing the empirical vector lets us drive a deterministic HSL color from quantum data and gives a visible "this came from a quantum execution" signal. |
-| **Post-quantum identity** | Educational ToyLWE: SHAKE-256 derives keypair material from `domain ‖ quantumSeed ‖ 32 OS bytes`; SHA-256 chain produces the signature; first 12 hex chars of the public-key digest become the badge | LWE is the same hardness assumption underlying the NIST PQC winners (Kyber/Dilithium). ToyLWE is a deliberately simple educational stand-in that keeps the on-chain artifact shape (public key, public key hash, signature) familiar to anyone planning a real PQC migration, while staying small enough to verify at a glance. |
+| **Quantum entropy** | Two-source QRNG: a single-qubit Hadamard circuit sampled for its **per-shot bit stream** on **SV1** (ideal source) and on **DM1** (noisy/weak source), condensed by a **Toeplitz two-source extractor** into uniform output bits | Follows the canonical AWS reference (`amazon-braket-examples` → `Randomness/Randomness_Generation.ipynb`). Reading every shot — rather than the modal bitstring — keeps the quantum randomness, and the two-source extractor yields output that is ε-close to uniform even under device noise. Output bytes supply both `quantumNumber ∈ [0, 1000]` and the 32-byte nonce `r`. Both circuits run on simulators, so cost stays < USD 0.01 per generation. |
+| **Quantum structural witness** | 2-qubit Bell-state `\|Φ⁺⟩` circuit on SV1 (200 shots), probabilities `[P(00), P(01), P(10), P(11)]` | A perfect simulator should yield ≈ `[0.5, 0, 0, 0.5]`. Storing the empirical vector lets us drive an HSL color from quantum data and gives a visible "this came from a quantum execution" signal. |
+| **Post-quantum identity** | Educational ToyLWE: `𝒮 = SHAKE-256(username ‖ quantumNumber ‖ r)` derives keypair material from the quantum nonce; a SHA-256 chain produces the signature; the first 12 hex chars of the public-key digest become the badge | LWE is the same hardness assumption underlying the NIST PQC winners (Kyber/Dilithium). ToyLWE is a deliberately simple educational stand-in that keeps the artifact shape (public key, public key hash, signature) familiar to anyone planning a real PQC migration, while staying small enough to verify at a glance. The full construction is specified in [`docs/paper/quantum-rng-implementation.md`](../../docs/paper/quantum-rng-implementation.md). |
 
 ### 1.3 What we do **not** claim
 
 - **Not BB84 / E91 / QKD.** Quantum key distribution requires two cooperating endpoints with quantum hardware and a public classical channel. The wall is a single-endpoint event experience; QKD would not have been the right primitive.
 - **Not standardized PQC.** ToyLWE is not Kyber, Dilithium, or any NIST-standardized scheme; it is a teaching artifact. For production migration, swap ToyLWE for `@aws-crypto/kyber` / `pq-crystals/dilithium` or the equivalent in your stack — the surrounding pipeline (Braket entropy + Bell witness + per-user caching + ALB-fronted DynamoDB row) is unchanged.
-- **Not fault-tolerant cryptanalysis.** The 4-qubit circuit is a randomness source, not a Shor/Grover instance. The badge demonstrates "quantum-authenticated identity" at event scale, not a quantum attack or quantum-key-establishment session.
+- **Not fault-tolerant cryptanalysis.** The Hadamard source circuits are a randomness source, not a Shor/Grover instance. The badge demonstrates "quantum-authenticated identity" at event scale, not a quantum attack or quantum-key-establishment session.
 
 ---
 
@@ -46,23 +51,24 @@ The pipeline is composed of three building blocks. Each is chosen for a specific
 |---|---|
 | Provider | Amazon Web Services |
 | Service | Amazon Braket |
-| Device | **SV1 — On-Demand State-Vector Simulator** |
-| Device ARN | `arn:aws:braket:::device/quantum-simulator/amazon/sv1` |
-| Maximum qubits | 34 (we use 4 for randomness, 2 for Bell state) |
+| Devices | **SV1 — On-Demand State-Vector Simulator** (ideal source) and **DM1 — Density-Matrix Simulator** (noisy/weak source) |
+| Device ARNs | `arn:aws:braket:::device/quantum-simulator/amazon/sv1`, `arn:aws:braket:::device/quantum-simulator/amazon/dm1` |
+| Qubits used | 1 per randomness source (sampled across ~700 shots each), 2 for the Bell state |
 | Regions used | `us-west-2` by default; configurable via `AWS_REGION_NAME` |
 | Result storage | S3 bucket configured by `BRAKET_BUCKET`, prefix `braket-results/` |
-| Typical latency | 2–5 seconds end-to-end per task |
+| Typical latency | 2–5 seconds end-to-end per task (run concurrently) |
 | Supports OpenQASM 3.0 | Yes; circuits are emitted as `braket.ir.openqasm.program` |
 
-SV1 was chosen because it is queue-free, region-flexible, and its latency stays within the 5-second polling cadence of the photo wall's `GET /api/messages/[groupId]` endpoint. A real QPU run can take 5–60 minutes once queueing is included, which would force the wall into an asynchronous "pending signature" flow without a meaningful change in the demonstration's narrative.
+SV1 and DM1 were chosen because they are queue-free, region-flexible, and their latency stays within the 5-second polling cadence of the photo wall's `GET /api/messages/[groupId]` endpoint. Using two **independent** simulator sources — one ideal, one noisy — is what makes the Toeplitz two-source extractor meaningful: it condenses two weak sources into output that is provably close to uniform even under noise. A real QPU run can take 5–60 minutes once queueing is included, which would force the wall into an asynchronous "pending signature" flow without a meaningful change in the demonstration's narrative.
 
 ### 2.2 Fallback path
 
-If Braket is unavailable, the code falls back to a deterministic local pipeline so the wall never blocks a sender:
+If Braket is unavailable, the code falls back to a local pipeline so the wall never blocks a sender. The fallback uses the OS CSPRNG (`crypto.randomBytes`) — it is **fresh and non-deterministic**, but it is **not** a quantum measurement, and it is **not** derived from message content:
 
 | Stage | Fallback behavior |
 |---|---|
-| Quantum random number | `shake256(\"quantum:\" + username + \":\" + Date.now()).readUInt16BE(0) mod 1001` |
+| Quantum random number | `crypto.randomBytes(4).readUInt32BE(0) mod 1001` |
+| Nonce `r` | `crypto.randomBytes(32)` |
 | Bell state | Static `[0.5, 0, 0, 0.5]` (the noiseless ideal) |
 | Algorithm tag | `algorithm: \"ToyLWE-local-fallback\"` |
 | Device tag | `device: \"local-fallback\"` |
@@ -80,7 +86,7 @@ The same `BraketClient + CreateQuantumTaskCommand` path can target real QPUs wit
 | Neutral atom | QuEra Aquila (256 qubits, us-east-1) | Programmable layouts, AHS paradigm; not a drop-in replacement for the gate-based RNG circuit but a candidate for thematic reservoir-style outputs |
 | Managed simulators | DM1 (density matrix), TN1 (tensor network) | Useful when modeling noise (DM1) or wider circuits (TN1) for educational variants |
 
-For an actual QPU rollout, expect to relax the 30-second polling window in `runOnSV1` and to surface a `signatureStatus = "queued"` state until the task completes.
+For an actual QPU rollout, expect to relax the 30-second polling window in `submitAndFetch` and to surface a `signatureStatus = "queued"` state until the task completes.
 
 ---
 
@@ -93,10 +99,11 @@ export interface QuantumSignature {
   quantumNumber: number;          // 0..1000
   publicKeyHash: string;          // 12 uppercase hex chars
   signature: string;              // 24 base64 chars
+  nonce: string;                  // hex of the 32 quantum-random bytes r
   bellState: [number, number, number, number]; // [P(00), P(01), P(10), P(11)]
-  algorithm: string;              // "ToyLWE-Braket-SV1" | "ToyLWE-local-fallback"
+  algorithm: string;              // "ToyLWE-2Source-Toeplitz" | "ToyLWE-local-fallback"
   visualColor: string;            // "hsl(h, s%, l%)"
-  device: string;                 // "SV1" | "local-fallback"
+  device: string;                 // "SV1+DM1" | "local-fallback"
 }
 ```
 
@@ -104,12 +111,12 @@ export interface QuantumSignature {
 
 | Stage | What is produced | Where it lives in the row |
 |---|---|---|
-| **Raw quantum random bits** | Most-frequent bitstring out of 100 shots on the 4-qubit RNG circuit | Not stored verbatim; collapsed to `quantumNumber = int(topBitstring, 2) mod 1001` |
-| **Error-tolerant aggregation** | Picking the modal bitstring is the trivial majority-vote analogue of error correction; combined with `mod 1001`, it absorbs single-shot noise from the simulator | `quantumNumber` |
-| **Privacy amplification** | `xof = SHAKE-256(\"ToyLWE-KeyGen-v1\" ‖ quantumSeed ‖ os.urandom(32), 64)` mixes quantum entropy with 32 OS-random bytes, breaking any per-task correlations | Not stored; mixed into `publicKeyHash` and `signature` |
-| **Final key material (public artifact)** | `publicKeyHash = SHA-256(xof[0:32])[0:12]` (uppercase hex); `signature = base64(SHA-256(msgHash ‖ entropyHash ‖ pkHash))[0:24]` | `publicKeyHash`, `signature` |
+| **Raw quantum random bits (two sources)** | Per-shot measurement streams `x` (SV1, ideal) and `y` (DM1, noisy) from ~700 shots each of a single-qubit Hadamard circuit | Not stored verbatim |
+| **Two-source randomness extraction** | Toeplitz extractor `Ext(x, y) = x·(T(y)\|I_m)ᵀ mod 2` condenses the two weak sources into `m = 288` bits that are ε-close to uniform (ε = 1e-8) even under device noise | Not stored; consumed below |
+| **Quantum random number + nonce** | `quantumNumber = readUInt32(out[0:4]) mod 1001`; `r = out[4:36]` (the 32 fresh quantum-random bytes) | `quantumNumber`, `quantumNonce` |
+| **Final key material (public artifact)** | `𝒮 = SHAKE-256(username ‖ quantumNumber ‖ r, 64)`; `publicKeyHash = SHA-256(𝒮[0:32])[0:12]` (uppercase hex); `signature = base64(SHA-256(H_msg : H_ent : pkHash))[0:24]` with `H_msg = SHA-256(message)`, `H_ent = SHA-256(quantumNumber)` | `publicKeyHash`, `quantumSignature` |
 | **Structural witness** | Empirical Bell-state probabilities from the 2-qubit `\|Φ⁺⟩` circuit (200 shots) | `bellState` |
-| **Audit metadata** | Whether SV1 produced the row or the fallback did | `algorithm`, `device`, plus `signatureStatus` in DynamoDB |
+| **Audit metadata** | Whether the SV1+DM1 QRNG produced the row or the fallback did | `signatureAlgorithm`, `device`, plus `signatureStatus` in DynamoDB |
 | **Presentation derivation** | `hue = (quantumNumber × 137.5) mod 360`; `sat = 70 + bellState[0] × 30`; `light = 45 + bellState[3] × 20` | `visualColor` |
 
 ### 3.2 What the card actually shows
@@ -146,4 +153,4 @@ The same pipeline shape generalizes to several real workloads:
 - ToyLWE is for demonstration; do not use it to protect real assets.
 - SV1 is a simulator; the only "quantumness" being demonstrated is the entropy source and the structural witness.
 - The fallback path is cryptographically seeded but is **not** a quantum measurement; rely on the `device` and `algorithm` tags when communicating provenance.
-- The 30-second polling window in `runOnSV1` is tuned for SV1; targeting a real QPU requires extending that window and propagating a `queued` state to the UI.
+- The 30-second polling window in `submitAndFetch` is tuned for SV1; targeting a real QPU requires extending that window and propagating a `queued` state to the UI.
