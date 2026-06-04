@@ -26,13 +26,7 @@ paper and the implementation now diverge.
    should state that there are two simulator sources (SV1 + DM1) and a Toeplitz extractor,
    and that the extractor output supplies both `q_num` and the 32-byte nonce `r`. This is
    what makes the Eq. (3) replay-resistance claim true and what justifies the [0, 1000]
-   range — without it, neither holds.
-
-3. **Eqs. (3)–(5) are now accurate — verify the wording matches.** The implemented
-   derivation is `𝒮 = SHAKE-256(username ‖ q_num ‖ r)`, `ℋ_pk = SHA-256(𝒮[0:32])[0:12]`
-   (uppercase), and `𝒢 = base64(SHA-256(ℋ_msg : ℋ_ent : ℋ_pk))[0:24]` with
-   `ℋ_msg = SHA-256(message)` and `ℋ_ent = SHA-256(q_num)`. This matches Eqs. (3)–(5); just
-   confirm `ℋ_msg` is described as hashing the message content (the earlier code hashed
-   `username|message|q_num`, which no longer applies).
+   range — without it, neither holds. (Eqs. 3–5 themselves now match the code; the only
+   wording fix is to describe `ℋ_msg` as hashing the message content alone.)
 
 *Source-code and notebook line references for each point are in `feedback-code-refs.md`.*
